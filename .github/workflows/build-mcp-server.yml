@@ -46,7 +46,7 @@ jobs:
         run: dotnet build src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj --no-restore --configuration Release
 
       - name: Upload MCP server build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: UIAutomationMcp-MCP-Server-${{ github.sha }}
           path: src/UIAutomationMcp.McpServer/bin/Release/net9.0-windows/

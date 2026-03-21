@@ -89,7 +89,7 @@ jobs:
     # Upload SARIF results as artifact for review
     - name: Upload CodeQL Results
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: codeql-sarif-results-${{ matrix.language }}
         path: sarif-results

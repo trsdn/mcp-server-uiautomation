@@ -46,7 +46,7 @@ jobs:
         run: dotnet build src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj --no-restore --configuration Release
 
       - name: Upload CLI build artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: UIAutomationMcp-CLI-${{ github.sha }}
           path: src/UIAutomationMcp.CLI/bin/Release/net9.0-windows/
