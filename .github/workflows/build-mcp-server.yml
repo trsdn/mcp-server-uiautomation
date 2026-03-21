@@ -1,0 +1,53 @@
+name: Build MCP Server
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/UIAutomationMcp.McpServer/**'
+      - 'src/UIAutomationMcp.Service/**'
+      - 'src/UIAutomationMcp.ComInterop/**'
+      - 'UIAutomationMcp.sln'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - '.github/workflows/build-mcp-server.yml'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/UIAutomationMcp.McpServer/**'
+      - 'src/UIAutomationMcp.Service/**'
+      - 'src/UIAutomationMcp.ComInterop/**'
+      - 'UIAutomationMcp.sln'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - '.github/workflows/build-mcp-server.yml'
+
+jobs:
+  build-mcp-server:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj
+
+      - name: Build MCP Server
+        run: dotnet build src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj --no-restore --configuration Release
+
+      - name: Upload MCP server build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: UIAutomationMcp-MCP-Server-${{ github.sha }}
+          path: src/UIAutomationMcp.McpServer/bin/Release/net9.0-windows/
+

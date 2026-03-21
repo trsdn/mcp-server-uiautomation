@@ -1,0 +1,98 @@
+{
+  "name": "uia-mcp",
+  "displayName": "UI Automation MCP",
+  "description": "Windows UI Automation tools for GitHub Copilot and MCP clients - inspect desktop elements, focused controls, handles, class names, and automation IDs",
+  "version": "1.0.0",
+  "publisher": "trsdn",
+  "icon": "icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trsdn/mcp-server-uiautomation"
+  },
+  "bugs": {
+    "url": "https://github.com/trsdn/mcp-server-uiautomation/issues"
+  },
+  "homepage": "https://github.com/trsdn/mcp-server-uiautomation",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.109.0"
+  },
+  "os": [
+    "win32"
+  ],
+  "categories": [
+    "AI",
+    "Chat",
+    "Data Science"
+  ],
+  "keywords": [
+    "mcp",
+    "model context protocol",
+    "ui automation",
+    "windows",
+    "desktop automation",
+    "automation",
+    "uia",
+    "accessibility",
+    "inspect",
+    "copilot",
+    "ai",
+    "github copilot",
+    "desktop"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "uia-mcp",
+        "label": "UI Automation MCP"
+      }
+    ],
+    "commands": [
+      {
+        "command": "uiaMcp.copyCliCommand",
+        "title": "UI Automation MCP: Copy CLI Command"
+      },
+      {
+        "command": "uiaMcp.revealBundledTools",
+        "title": "UI Automation MCP: Reveal Bundled Tools"
+      }
+    ],
+    "chatSkills": [
+      {
+        "path": "./skills/uia-mcp/SKILL.md"
+      },
+      {
+        "path": "./skills/uia-cli/SKILL.md"
+      }
+    ]
+  },
+  "scripts": {
+    "clean": "cd .. && dotnet build-server shutdown && dotnet clean src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj -c Release -nodeReuse:false && dotnet clean src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj -c Release -nodeReuse:false",
+    "clean:bin": "node -e \"const fs=require('fs'); try{fs.rmSync('bin',{recursive:true,force:true})}catch{}\"",
+    "copy:skills": "node -e \"const fs=require('fs'); const path=require('path'); const copy=(src,dst)=>{ if(!fs.existsSync(src)) return; fs.rmSync(dst,{recursive:true,force:true}); fs.mkdirSync(dst,{recursive:true}); for (const entry of fs.readdirSync(src,{withFileTypes:true})) { const s=path.join(src,entry.name); const d=path.join(dst,entry.name); if (entry.isDirectory()) copy(s,d); else fs.copyFileSync(s,d); } }; copy(path.join('skills-src','uia-mcp'), path.join('skills','uia-mcp')); copy(path.join('skills-src','uia-cli'), path.join('skills','uia-cli'));\"",
+    "build:mcp-server": "npm run clean && npm run clean:bin && cd .. && dotnet publish src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -p:PublishReadyToRun=false -p:NuGetAudit=false -nodeReuse:false -o vscode-extension/bin --verbosity minimal",
+    "build:cli": "cd .. && dotnet publish src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:PublishTrimmed=false -p:PublishReadyToRun=false -p:NuGetAudit=false -nodeReuse:false -o vscode-extension/bin --verbosity minimal",
+    "copy:changelog": "node -e \"const fs=require('fs'); fs.copyFileSync('../CHANGELOG.md','CHANGELOG.md');\"",
+    "vscode:prepublish": "npm run build:mcp-server && npm run build:cli && npm run copy:skills && npm run copy:changelog && npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "lint": "eslint src --ext ts"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.19.11",
+    "@types/vscode": "^1.109.0",
+    "@vscode/vsce": "^3.7.1",
+    "eslint": "^10.1.0",
+    "typescript-eslint": "^8.57.1",
+    "typescript": "^5.9.3"
+  },
+  "overrides": {
+    "undici": "7.24.5"
+  }
+}

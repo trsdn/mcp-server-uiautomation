@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);1591;CA1822</NoWarn>
+    <AssemblyName>UIAutomationMcp.Service</AssemblyName>
+    <RootNamespace>UIAutomationMcp.Service</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\UIAutomationMcp.ComInterop\UIAutomationMcp.ComInterop.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,49 @@
+name: UI Automation Smoke Checks
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - '.github/workflows/integration-tests.yml'
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - 'global.json'
+      - 'Directory.Build.props'
+      - 'Directory.Packages.props'
+      - '.github/workflows/integration-tests.yml'
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Build solution
+        run: dotnet build UIAutomationMcp.sln -c Release
+
+      - name: Run smoke executable
+        run: dotnet run --project src/UIAutomationMcp.Smoke/UIAutomationMcp.Smoke.csproj -c Release
+
+      - name: Run CLI desktop query
+        run: dotnet run --project src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj -c Release -- desktop
+
+      - name: Run CLI focused query
+        run: dotnet run --project src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj -c Release -- focused
+

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "uia-mcp": {
+      "command": "C:\\path\\to\\UIAutomationMcp.McpServer.exe",
+      "args": [],
+      "env": {}
+    }
+  }
+}

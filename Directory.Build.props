@@ -1,0 +1,62 @@
+<Project>
+
+  <PropertyGroup>
+    <!-- Common properties for all projects -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <Authors>Torsten Mahr</Authors>
+    <Company>Open Source Developer</Company>
+    <Product>UIAutomationMcp</Product>
+    <Copyright>Copyright © 2026 Torsten Mahr</Copyright>
+
+    <!-- Repository information -->
+    <PackageProjectUrl>https://github.com/trsdn/mcp-server-uiautomation</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/trsdn/mcp-server-uiautomation</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+
+    <!-- Build settings -->
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>13</LangVersion>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <WarningsAsErrors />
+
+    <!--
+      Suppressed warnings (cannot be fixed - see docs/DEVELOPMENT.md for details):
+      - CA1416: Windows-only APIs (this is a Windows-only UI Automation project)
+      - SYSLIB1045: GeneratedRegexAttribute pattern (not applicable to our regex usage)
+      - CA1848: Use LoggerMessage delegates (perf optimization not needed for our diagnostic logging)
+      - CA1873: Logging argument evaluation (diagnostics only, performance not critical)
+      - CA1875: Regex.Count vs Regex.Matches.Count (test code readability, not perf critical)
+    -->
+    <NoWarn>$(NoWarn);CA1416;SYSLIB1045;CA1848;CA1873;CA1875</NoWarn>
+
+    <!-- Deterministic builds for reproducibility -->
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+
+    <!-- Code Analysis -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <CodeAnalysisTreatWarningsAsErrors>true</CodeAnalysisTreatWarningsAsErrors>
+
+    <!-- Generate XML documentation for all projects to enable IDE0005 analyzer -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+
+    <!-- Security -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <_SkipUpgradeNetAnalyzersNuGetWarning>true</_SkipUpgradeNetAnalyzersNuGetWarning>
+
+  </PropertyGroup>
+
+  <!-- Import user-specific properties (gitignored, for local secrets) -->
+  <Import Project="Directory.Build.props.user" Condition="Exists('Directory.Build.props.user')" />
+
+</Project>

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.trsdn/mcp-server-uiautomation",
+  "title": "UIAutomationMcp",
+  "description": "Windows UI Automation MCP server for desktop inspection and element lookup. Windows only.",
+  "version": "1.0.0",
+  "packages": [
+    {
+      "registryType": "nuget",
+      "identifier": "UIAutomationMcp.McpServer",
+      "version": "1.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "packageArguments": [],
+      "environmentVariables": []
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/trsdn/mcp-server-uiautomation",
+    "source": "github"
+  }
+}

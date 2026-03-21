@@ -1,0 +1,9 @@
+{
+	"inputs": [],
+	"servers": {
+		"uia-mcp": {
+			"type": "stdio",
+			"command": "${workspaceFolder}/src/UIAutomationMcp.McpServer/bin/Release/net9.0-windows/UIAutomationMcp.McpServer.exe"
+		}
+	}
+}

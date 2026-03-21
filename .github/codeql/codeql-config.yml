@@ -1,0 +1,30 @@
+# CodeQL configuration for UIAutomationMcp
+
+name: "UIAutomationMcp CodeQL Configuration"
+disable-default-queries: true
+
+queries:
+  - uses: security-extended
+
+paths:
+  - 'src/**'
+
+paths-ignore:
+  - '**/bin/**'
+  - '**/obj/**'
+  - '**/packages/**'
+  - '**/.nuget/**'
+  - '**/node_modules/**'
+  - 'tests/**'
+  - 'vscode-extension/out/**'
+  - 'vscode-extension/bin/**'
+
+query-filters:
+  - exclude:
+      id: cs/invalid-dynamic-call
+      paths:
+        - src/UIAutomationMcp.ComInterop/**
+
+ml-powered-queries: true
+trap-caching: true
+
