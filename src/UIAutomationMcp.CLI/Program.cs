@@ -22,7 +22,6 @@ try
         "desktop" => service.ProbeDesktop(),
         "snapshot" => service.CaptureSnapshot(),
         "focused" => service.GetFocusedElement(),
-        "audio" => HandleAudioCommand(service, input),
         "handle" => service.GetElementFromHandle(ParseHandleOption(input)),
         "find-name" => service.FindFirstByName(input.RequireOption("--name")),
         "find-class" => service.FindFirstByClassName(input.RequireOption("--class")),
@@ -169,24 +168,6 @@ static UiAutomationEventWaitRequest BuildEventWaitRequest(CliInput input) => new
     PropertyId = input.TryGetOption("--property-id", out var propertyIdText) ? int.Parse(propertyIdText, CultureInfo.InvariantCulture) : null
 };
 
-static UiAutomationAudioResult HandleAudioCommand(UiAutomationService service, CliInput input)
-{
-    var positionals = input.GetPositionals();
-    if (positionals.Count == 0)
-    {
-        throw new ArgumentException("The audio command requires an action: status, mute, unmute, or toggle-mute.");
-    }
-
-    return positionals[0].Trim().ToLowerInvariant() switch
-    {
-        "status" => service.GetSystemAudioState(),
-        "mute" => service.SetSystemAudioMute(true),
-        "unmute" => service.SetSystemAudioMute(false),
-        "toggle-mute" => service.ToggleSystemAudioMute(),
-        _ => throw new ArgumentException($"Unknown audio action '{positionals[0]}'. Use status, mute, unmute, or toggle-mute.")
-    };
-}
-
 static UiAutomationCacheRequestInfo? BuildCacheRequest(CliInput input)
 {
     if (!input.HasFlag("--cache"))
@@ -231,7 +212,6 @@ static void WriteHelp()
     Console.WriteLine("  desktop");
     Console.WriteLine("  snapshot");
     Console.WriteLine("  focused");
-    Console.WriteLine("  audio <status|mute|unmute|toggle-mute>");
     Console.WriteLine("  handle --handle <hwnd>");
     Console.WriteLine("  point --x <x> --y <y>");
     Console.WriteLine("  find-name --name <text>");

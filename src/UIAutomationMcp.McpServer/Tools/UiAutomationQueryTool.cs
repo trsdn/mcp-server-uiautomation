@@ -16,16 +16,6 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
     [McpServerTool(Name = "uia_focused")]
     public string Focused() => Execute(service.GetFocusedElement);
 
-    [McpServerTool(Name = "uia_audio")]
-    public string Audio(string action = "status") => Execute(() => action.Trim().ToLowerInvariant() switch
-    {
-        "status" => service.GetSystemAudioState(),
-        "mute" => service.SetSystemAudioMute(true),
-        "unmute" => service.SetSystemAudioMute(false),
-        "toggle-mute" => service.ToggleSystemAudioMute(),
-        _ => throw new ArgumentException($"Unknown audio action '{action}'. Use status, mute, unmute, or toggle-mute.")
-    });
-
     [McpServerTool(Name = "uia_handle")]
     public string FromHandle(long handle) => Execute(() => service.GetElementFromHandle(new nint(handle)));
 

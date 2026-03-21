@@ -26,7 +26,6 @@ It also keeps the historical reference to Excel MCP as a related sibling project
 - supports build-cache requests for inspection, search, and navigation
 - reads text, selection, and key pattern states
 - waits for focus, automation, property-changed, and structure-changed events
-- reads and changes the default render endpoint mute state for practical audio control
 - performs common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, and range-value updates
 - exposes the same expanded surface through CLI and MCP
 - packages the CLI and MCP server inside the VS Code extension
@@ -49,8 +48,6 @@ dotnet build .\UIAutomationMcp.sln -c Release
 .\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe descendants --focused --view raw --max-results 25
 .\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe wait-event --event-kind focus --timeout-ms 500
 .\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe action focus --focused
-.\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe audio status
-.\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe audio unmute
 ```
 
 ## Related docs

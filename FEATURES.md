@@ -29,7 +29,6 @@
 - text extraction and selected-text reads
 - selection-state reads
 - one-shot event waits for focus, automation, property-changed, and structure-changed events
-- default render-endpoint mute state reads and updates
 - supported-pattern discovery
 - pattern state projection for value, range value, toggle, expand/collapse, window, scroll, and selection item
 
@@ -50,9 +49,6 @@
 - `UiAutomationService.Navigate(...)`
 - `UiAutomationService.ReadText(...)`
 - `UiAutomationService.ReadSelection(...)`
-- `UiAutomationService.GetSystemAudioState()`
-- `UiAutomationService.SetSystemAudioMute(...)`
-- `UiAutomationService.ToggleSystemAudioMute()`
 - `UiAutomationService.PerformAction(...)`
 - `UiAutomationService.WaitForEvent(...)`
 
@@ -70,7 +66,6 @@
 - opt into build-cache requests
 - read text and selection information
 - wait for one-shot UIA events
-- read and change the default system-audio mute state
 - execute focus, invoke, value, selection, window, transform, scroll, and range-value actions
 
 ### Validation

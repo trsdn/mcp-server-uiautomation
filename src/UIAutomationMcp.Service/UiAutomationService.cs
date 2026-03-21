@@ -42,12 +42,6 @@ public sealed class UiAutomationService
 
     public UiAutomationSelectionInfo? ReadSelection(UiAutomationLocateRequest locator) => UiAutomationBootstrap.ReadSelection(locator);
 
-    public UiAutomationAudioResult GetSystemAudioState() => UiAutomationBootstrap.GetSystemAudioState();
-
-    public UiAutomationAudioResult SetSystemAudioMute(bool muted) => UiAutomationBootstrap.SetSystemAudioMute(muted);
-
-    public UiAutomationAudioResult ToggleSystemAudioMute() => UiAutomationBootstrap.ToggleSystemAudioMute();
-
     public UiAutomationActionResult PerformAction(UiAutomationActionRequest request) => UiAutomationBootstrap.PerformAction(request);
 
     public UiAutomationEventResult WaitForEvent(UiAutomationEventWaitRequest request) => UiAutomationBootstrap.WaitForEvent(request);

@@ -543,12 +543,6 @@ public static class UiAutomationBootstrap
         }
     });
 
-    public static UiAutomationAudioResult GetSystemAudioState() => RunInSta(SystemAudioController.GetState);
-
-    public static UiAutomationAudioResult SetSystemAudioMute(bool muted) => RunInSta(() => SystemAudioController.SetMute(muted));
-
-    public static UiAutomationAudioResult ToggleSystemAudioMute() => RunInSta(SystemAudioController.ToggleMute);
-
     public static UiAutomationActionResult PerformAction(UiAutomationActionRequest request) => RunInSta(() =>
     {
         IUIAutomation automation = CreateAutomation();
