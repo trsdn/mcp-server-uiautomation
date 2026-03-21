@@ -29,12 +29,24 @@ public sealed class UiAutomationService
 
     public IReadOnlyList<UiAutomationElementInfo> FindAll(UiAutomationSearchRequest request) => UiAutomationBootstrap.FindAll(request);
 
+    public IReadOnlyList<UiAutomationElementInfo> ListChildren(UiAutomationLocateRequest locator, string view = "control", int maxResults = 50) =>
+        UiAutomationBootstrap.ListChildren(locator, view, maxResults);
+
+    public IReadOnlyList<UiAutomationElementInfo> ListDescendants(UiAutomationLocateRequest locator, string view = "control", int maxResults = 50) =>
+        UiAutomationBootstrap.ListDescendants(locator, view, maxResults);
+
     public UiAutomationElementInfo? Navigate(UiAutomationLocateRequest locator, string direction, string view = "control") =>
         UiAutomationBootstrap.Navigate(locator, direction, view);
 
     public UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator) => UiAutomationBootstrap.ReadText(locator);
 
     public UiAutomationSelectionInfo? ReadSelection(UiAutomationLocateRequest locator) => UiAutomationBootstrap.ReadSelection(locator);
+
+    public UiAutomationAudioResult GetSystemAudioState() => UiAutomationBootstrap.GetSystemAudioState();
+
+    public UiAutomationAudioResult SetSystemAudioMute(bool muted) => UiAutomationBootstrap.SetSystemAudioMute(muted);
+
+    public UiAutomationAudioResult ToggleSystemAudioMute() => UiAutomationBootstrap.ToggleSystemAudioMute();
 
     public UiAutomationActionResult PerformAction(UiAutomationActionRequest request) => UiAutomationBootstrap.PerformAction(request);
 

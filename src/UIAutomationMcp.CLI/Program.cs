@@ -22,12 +22,15 @@ try
         "desktop" => service.ProbeDesktop(),
         "snapshot" => service.CaptureSnapshot(),
         "focused" => service.GetFocusedElement(),
+        "audio" => HandleAudioCommand(service, input),
         "handle" => service.GetElementFromHandle(ParseHandleOption(input)),
         "find-name" => service.FindFirstByName(input.RequireOption("--name")),
         "find-class" => service.FindFirstByClassName(input.RequireOption("--class")),
         "find-automation-id" => service.FindFirstByAutomationId(input.RequireOption("--automation-id")),
         "inspect" => service.Inspect(BuildLocateRequest(input, requireExplicit: false)),
         "find" => service.FindAll(BuildSearchRequest(input)),
+        "children" => service.ListChildren(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--view") ?? "control", ParseOptionalInt(input, "--max-results") ?? 50),
+        "descendants" => service.ListDescendants(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--view") ?? "control", ParseOptionalInt(input, "--max-results") ?? 50),
         "point" => service.GetElementFromPoint(ParseInt(input, "--x"), ParseInt(input, "--y")),
         "navigate" => service.Navigate(BuildLocateRequest(input, requireExplicit: true), input.RequireOption("--direction"), input.GetOption("--view") ?? "control"),
         "text" => service.ReadText(BuildLocateRequest(input, requireExplicit: true)),
@@ -166,6 +169,24 @@ static UiAutomationEventWaitRequest BuildEventWaitRequest(CliInput input) => new
     PropertyId = input.TryGetOption("--property-id", out var propertyIdText) ? int.Parse(propertyIdText, CultureInfo.InvariantCulture) : null
 };
 
+static UiAutomationAudioResult HandleAudioCommand(UiAutomationService service, CliInput input)
+{
+    var positionals = input.GetPositionals();
+    if (positionals.Count == 0)
+    {
+        throw new ArgumentException("The audio command requires an action: status, mute, unmute, or toggle-mute.");
+    }
+
+    return positionals[0].Trim().ToLowerInvariant() switch
+    {
+        "status" => service.GetSystemAudioState(),
+        "mute" => service.SetSystemAudioMute(true),
+        "unmute" => service.SetSystemAudioMute(false),
+        "toggle-mute" => service.ToggleSystemAudioMute(),
+        _ => throw new ArgumentException($"Unknown audio action '{positionals[0]}'. Use status, mute, unmute, or toggle-mute.")
+    };
+}
+
 static UiAutomationCacheRequestInfo? BuildCacheRequest(CliInput input)
 {
     if (!input.HasFlag("--cache"))
@@ -195,6 +216,10 @@ static nint ParseHandleValue(string text)
 
 static int ParseInt(CliInput input, string option) => int.Parse(input.RequireOption(option), CultureInfo.InvariantCulture);
 
+static int? ParseOptionalInt(CliInput input, string option) => input.TryGetOption(option, out var value)
+    ? int.Parse(value, CultureInfo.InvariantCulture)
+    : null;
+
 static double? TryParseDouble(string? value) => double.TryParse(value, out var parsed) ? parsed : null;
 
 static int? TryParseInt(string? value) => int.TryParse(value, out var parsed) ? parsed : null;
@@ -206,6 +231,7 @@ static void WriteHelp()
     Console.WriteLine("  desktop");
     Console.WriteLine("  snapshot");
     Console.WriteLine("  focused");
+    Console.WriteLine("  audio <status|mute|unmute|toggle-mute>");
     Console.WriteLine("  handle --handle <hwnd>");
     Console.WriteLine("  point --x <x> --y <y>");
     Console.WriteLine("  find-name --name <text>");
@@ -213,6 +239,8 @@ static void WriteHelp()
     Console.WriteLine("  find-automation-id --automation-id <id>");
     Console.WriteLine("  inspect [locator flags]");
     Console.WriteLine("  find [locator flags] [--max-results <n>]");
+    Console.WriteLine("  children [locator flags] [--view raw|control|content] [--max-results <n>]");
+    Console.WriteLine("  descendants [locator flags] [--view raw|control|content] [--max-results <n>]");
     Console.WriteLine("  navigate [locator flags] --direction <parent|first-child|last-child|next-sibling|previous-sibling|normalize> [--view raw|control|content]");
     Console.WriteLine("  text [locator flags]");
     Console.WriteLine("  selection [locator flags]");

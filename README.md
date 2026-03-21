@@ -20,10 +20,13 @@ It also keeps the historical reference to Excel MCP as a related sibling project
 - reads rich desktop-root and focused-element metadata, including bounds, runtime IDs, and supported patterns
 - resolves elements from native window handles and screen coordinates
 - searches UIA trees by name, class name, automation id, framework id, control type, and process id
+- enumerates immediate children from raw, control, or content tree views
+- enumerates descendants from raw, control, or content tree views
 - navigates the UIA tree with raw, control, and content walkers
 - supports build-cache requests for inspection, search, and navigation
 - reads text, selection, and key pattern states
 - waits for focus, automation, property-changed, and structure-changed events
+- reads and changes the default render endpoint mute state for practical audio control
 - performs common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, and range-value updates
 - exposes the same expanded surface through CLI and MCP
 - packages the CLI and MCP server inside the VS Code extension
@@ -42,8 +45,12 @@ dotnet build .\UIAutomationMcp.sln -c Release
 .\src\UIAutomationMcp.Smoke\bin\Release\net9.0-windows\UIAutomationMcp.Smoke.exe
 .\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe inspect --root --cache
 .\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe find --focused --scope children --max-results 10 --cache
+.\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe children --focused --view raw --max-results 10
+.\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe descendants --focused --view raw --max-results 25
 .\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe wait-event --event-kind focus --timeout-ms 500
 .\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe action focus --focused
+.\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe audio status
+.\src\UIAutomationMcp.CLI\bin\Release\net9.0-windows\uiamcp.exe audio unmute
 ```
 
 ## Related docs

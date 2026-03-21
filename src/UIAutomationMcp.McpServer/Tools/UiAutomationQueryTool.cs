@@ -16,6 +16,16 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
     [McpServerTool(Name = "uia_focused")]
     public string Focused() => Execute(service.GetFocusedElement);
 
+    [McpServerTool(Name = "uia_audio")]
+    public string Audio(string action = "status") => Execute(() => action.Trim().ToLowerInvariant() switch
+    {
+        "status" => service.GetSystemAudioState(),
+        "mute" => service.SetSystemAudioMute(true),
+        "unmute" => service.SetSystemAudioMute(false),
+        "toggle-mute" => service.ToggleSystemAudioMute(),
+        _ => throw new ArgumentException($"Unknown audio action '{action}'. Use status, mute, unmute, or toggle-mute.")
+    });
+
     [McpServerTool(Name = "uia_handle")]
     public string FromHandle(long handle) => Execute(() => service.GetElementFromHandle(new nint(handle)));
 
@@ -88,6 +98,56 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
             MaxResults = maxResults,
             CacheRequest = CreateCacheRequest(cache, cacheScope, cacheView)
         }));
+
+    [McpServerTool(Name = "uia_children")]
+    public string Children(
+        string view = "control",
+        bool root = false,
+        bool focused = false,
+        bool fromFocused = false,
+        long? handle = null,
+        int? x = null,
+        int? y = null,
+        string? name = null,
+        string? className = null,
+        string? automationId = null,
+        string? frameworkId = null,
+        int? controlType = null,
+        int? processId = null,
+        bool cache = false,
+        string cacheScope = "subtree",
+        string cacheView = "control",
+        string scope = "subtree",
+        int maxResults = 50) =>
+        Execute(() => service.ListChildren(
+            CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView),
+            view,
+            maxResults));
+
+    [McpServerTool(Name = "uia_descendants")]
+    public string Descendants(
+        string view = "control",
+        bool root = false,
+        bool focused = false,
+        bool fromFocused = false,
+        long? handle = null,
+        int? x = null,
+        int? y = null,
+        string? name = null,
+        string? className = null,
+        string? automationId = null,
+        string? frameworkId = null,
+        int? controlType = null,
+        int? processId = null,
+        bool cache = false,
+        string cacheScope = "subtree",
+        string cacheView = "control",
+        string scope = "subtree",
+        int maxResults = 50) =>
+        Execute(() => service.ListDescendants(
+            CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView),
+            view,
+            maxResults));
 
     [McpServerTool(Name = "uia_navigate")]
     public string Navigate(

@@ -21,12 +21,15 @@
 - search by control type
 - search by process id
 - multi-result `FindAll(...)`
+- immediate child enumeration from raw, control, and content views
+- descendant enumeration from raw, control, and content views
 - tree navigation via parent, child, sibling, and normalize operations
 - raw, control, and content tree walkers
 - build-cache request support for inspect/search/navigation
 - text extraction and selected-text reads
 - selection-state reads
 - one-shot event waits for focus, automation, property-changed, and structure-changed events
+- default render-endpoint mute state reads and updates
 - supported-pattern discovery
 - pattern state projection for value, range value, toggle, expand/collapse, window, scroll, and selection item
 
@@ -42,9 +45,14 @@
 - `UiAutomationService.Inspect(...)`
 - `UiAutomationService.TryInspect(...)`
 - `UiAutomationService.FindAll(...)`
+- `UiAutomationService.ListChildren(...)`
+- `UiAutomationService.ListDescendants(...)`
 - `UiAutomationService.Navigate(...)`
 - `UiAutomationService.ReadText(...)`
 - `UiAutomationService.ReadSelection(...)`
+- `UiAutomationService.GetSystemAudioState()`
+- `UiAutomationService.SetSystemAudioMute(...)`
+- `UiAutomationService.ToggleSystemAudioMute()`
 - `UiAutomationService.PerformAction(...)`
 - `UiAutomationService.WaitForEvent(...)`
 
@@ -56,10 +64,13 @@
 ### CLI and MCP coverage
 - inspect elements with generic locators (`--root`, `--focused`, `--handle`, `--x/--y`, property filters)
 - search with scope and max-result controls
+- enumerate immediate children from raw, control, or content view
+- enumerate descendants from raw, control, or content view
 - navigate UIA trees from the same locator model
 - opt into build-cache requests
 - read text and selection information
 - wait for one-shot UIA events
+- read and change the default system-audio mute state
 - execute focus, invoke, value, selection, window, transform, scroll, and range-value actions
 
 ### Validation

@@ -213,6 +213,83 @@ public static class UiAutomationBootstrap
         }
     });
 
+    public static IReadOnlyList<UiAutomationElementInfo> ListChildren(UiAutomationLocateRequest locator, string view = "control", int maxResults = 50) => RunInSta(() =>
+    {
+        IUIAutomation automation = CreateAutomation();
+        IUIAutomationElement? origin = null;
+        IUIAutomationTreeWalker? walker = null;
+        IUIAutomationElement? current = null;
+        IUIAutomationCacheRequest? cacheRequest = null;
+
+        try
+        {
+            cacheRequest = BuildCacheRequest(automation, locator.CacheRequest);
+            origin = ResolveElement(automation, locator, throwIfNotFound: true, cacheRequest);
+            walker = CreateWalker(automation, view);
+            current = cacheRequest is null
+                ? walker.GetFirstChildElement(origin!)
+                : walker.GetFirstChildElementBuildCache(origin!, cacheRequest);
+
+            var results = new List<UiAutomationElementInfo>(Math.Max(1, maxResults));
+            var limit = Math.Max(1, maxResults);
+            while (current is not null && results.Count < limit)
+            {
+                IUIAutomationElement? next = null;
+                try
+                {
+                    results.Add(ReadElementInfo(automation, current));
+                    next = cacheRequest is null
+                        ? walker.GetNextSiblingElement(current)
+                        : walker.GetNextSiblingElementBuildCache(current, cacheRequest);
+                }
+                finally
+                {
+                    FinalRelease(current);
+                }
+
+                current = next;
+            }
+
+            return results;
+        }
+        finally
+        {
+            FinalRelease(current);
+            FinalRelease(cacheRequest);
+            FinalRelease(walker);
+            FinalRelease(origin);
+            FinalRelease(automation);
+        }
+    });
+
+    public static IReadOnlyList<UiAutomationElementInfo> ListDescendants(UiAutomationLocateRequest locator, string view = "control", int maxResults = 50) => RunInSta(() =>
+    {
+        IUIAutomation automation = CreateAutomation();
+        IUIAutomationElement? origin = null;
+        IUIAutomationTreeWalker? walker = null;
+        IUIAutomationCacheRequest? cacheRequest = null;
+
+        try
+        {
+            cacheRequest = BuildCacheRequest(automation, locator.CacheRequest);
+            origin = ResolveElement(automation, locator, throwIfNotFound: true, cacheRequest);
+            walker = CreateWalker(automation, view);
+
+            var results = new List<UiAutomationElementInfo>(Math.Max(1, maxResults));
+            var limit = Math.Max(1, maxResults);
+
+            VisitDescendants(origin!, walker, cacheRequest, automation, results, limit);
+            return results;
+        }
+        finally
+        {
+            FinalRelease(cacheRequest);
+            FinalRelease(walker);
+            FinalRelease(origin);
+            FinalRelease(automation);
+        }
+    });
+
     public static UiAutomationElementInfo? Navigate(UiAutomationLocateRequest locator, string direction, string view = "control") => RunInSta(() =>
     {
         IUIAutomation automation = CreateAutomation();
@@ -466,6 +543,12 @@ public static class UiAutomationBootstrap
         }
     });
 
+    public static UiAutomationAudioResult GetSystemAudioState() => RunInSta(SystemAudioController.GetState);
+
+    public static UiAutomationAudioResult SetSystemAudioMute(bool muted) => RunInSta(() => SystemAudioController.SetMute(muted));
+
+    public static UiAutomationAudioResult ToggleSystemAudioMute() => RunInSta(SystemAudioController.ToggleMute);
+
     public static UiAutomationActionResult PerformAction(UiAutomationActionRequest request) => RunInSta(() =>
     {
         IUIAutomation automation = CreateAutomation();
@@ -600,45 +683,45 @@ public static class UiAutomationBootstrap
 
     private static IUIAutomationElement? ResolveElement(IUIAutomation automation, UiAutomationLocateRequest request, bool throwIfNotFound, IUIAutomationCacheRequest? cacheRequest)
     {
-        if (request.DesktopRoot)
+        if (request.PointX.HasValue != request.PointY.HasValue)
         {
-            return cacheRequest is null ? automation.GetRootElement() : automation.GetRootElementBuildCache(cacheRequest);
+            throw new ArgumentException("Both --x and --y are required when locating from a point.");
         }
 
-        if (request.FocusedElement)
-        {
-            var focused = TryGetFocusedElement(automation, cacheRequest);
-            if (focused is not null || !throwIfNotFound)
-            {
-                return focused;
-            }
-
-            throw new InvalidOperationException("No focused element is currently available.");
-        }
-
-        if (request.WindowHandle.HasValue)
-        {
-            return cacheRequest is null
-                ? automation.ElementFromHandle(new IntPtr(request.WindowHandle.Value))
-                : automation.ElementFromHandleBuildCache(new IntPtr(request.WindowHandle.Value), cacheRequest);
-        }
-
-        if (request.PointX.HasValue && request.PointY.HasValue)
-        {
-            return cacheRequest is null
-                ? automation.ElementFromPoint(new tagPOINT { x = request.PointX.Value, y = request.PointY.Value })
-                : automation.ElementFromPointBuildCache(new tagPOINT { x = request.PointX.Value, y = request.PointY.Value }, cacheRequest);
-        }
-
-        var hasFilter = !string.IsNullOrWhiteSpace(request.Name)
-            || !string.IsNullOrWhiteSpace(request.ClassName)
-            || !string.IsNullOrWhiteSpace(request.AutomationId)
-            || !string.IsNullOrWhiteSpace(request.FrameworkId)
-            || request.ControlType.HasValue
-            || request.ProcessId.HasValue;
+        var hasFilter = HasSearchCriteria(request);
 
         if (!hasFilter)
         {
+            if (request.DesktopRoot)
+            {
+                return cacheRequest is null ? automation.GetRootElement() : automation.GetRootElementBuildCache(cacheRequest);
+            }
+
+            if (request.FocusedElement)
+            {
+                var focused = TryGetFocusedElement(automation, cacheRequest);
+                if (focused is not null || !throwIfNotFound)
+                {
+                    return focused;
+                }
+
+                throw new InvalidOperationException("No focused element is currently available.");
+            }
+
+            if (request.WindowHandle.HasValue)
+            {
+                return cacheRequest is null
+                    ? automation.ElementFromHandle(new IntPtr(request.WindowHandle.Value))
+                    : automation.ElementFromHandleBuildCache(new IntPtr(request.WindowHandle.Value), cacheRequest);
+            }
+
+            if (request.PointX.HasValue && request.PointY.HasValue)
+            {
+                return cacheRequest is null
+                    ? automation.ElementFromPoint(new tagPOINT { x = request.PointX.Value, y = request.PointY.Value })
+                    : automation.ElementFromPointBuildCache(new tagPOINT { x = request.PointX.Value, y = request.PointY.Value }, cacheRequest);
+            }
+
             return cacheRequest is null ? automation.GetRootElement() : automation.GetRootElementBuildCache(cacheRequest);
         }
 
@@ -646,9 +729,7 @@ public static class UiAutomationBootstrap
         IUIAutomationCondition? filter = null;
         try
         {
-            origin = request.SearchFromFocused
-                ? TryGetFocusedElement(automation, cacheRequest) ?? throw new InvalidOperationException("No focused element is currently available.")
-                : cacheRequest is null ? automation.GetRootElement() : automation.GetRootElementBuildCache(cacheRequest);
+            origin = ResolveLocateOrigin(automation, request, cacheRequest);
             filter = BuildFilterCondition(automation, request);
             var match = cacheRequest is null
                 ? origin.FindFirst(ParseTreeScope(request.Scope), filter)
@@ -670,6 +751,39 @@ public static class UiAutomationBootstrap
     private static IUIAutomationElement ResolveEventOrigin(IUIAutomation automation, UiAutomationEventWaitRequest request, IUIAutomationCacheRequest? cacheRequest) =>
         ResolveElement(automation, request.Locator, throwIfNotFound: true, cacheRequest)
         ?? throw new InvalidOperationException("The requested UI Automation element could not be found.");
+
+    private static IUIAutomationElement ResolveLocateOrigin(IUIAutomation automation, UiAutomationLocateRequest request, IUIAutomationCacheRequest? cacheRequest)
+    {
+        if (request.FocusedElement || request.SearchFromFocused)
+        {
+            return TryGetFocusedElement(automation, cacheRequest)
+                ?? throw new InvalidOperationException("No focused element is currently available.");
+        }
+
+        if (request.WindowHandle.HasValue)
+        {
+            return cacheRequest is null
+                ? automation.ElementFromHandle(new IntPtr(request.WindowHandle.Value))
+                : automation.ElementFromHandleBuildCache(new IntPtr(request.WindowHandle.Value), cacheRequest);
+        }
+
+        if (request.PointX.HasValue && request.PointY.HasValue)
+        {
+            return cacheRequest is null
+                ? automation.ElementFromPoint(new tagPOINT { x = request.PointX.Value, y = request.PointY.Value })
+                : automation.ElementFromPointBuildCache(new tagPOINT { x = request.PointX.Value, y = request.PointY.Value }, cacheRequest);
+        }
+
+        return cacheRequest is null ? automation.GetRootElement() : automation.GetRootElementBuildCache(cacheRequest);
+    }
+
+    private static bool HasSearchCriteria(UiAutomationLocateRequest request) =>
+        !string.IsNullOrWhiteSpace(request.Name)
+        || !string.IsNullOrWhiteSpace(request.ClassName)
+        || !string.IsNullOrWhiteSpace(request.AutomationId)
+        || !string.IsNullOrWhiteSpace(request.FrameworkId)
+        || request.ControlType.HasValue
+        || request.ProcessId.HasValue;
 
     private static IUIAutomationCondition BuildFilterCondition(IUIAutomation automation, UiAutomationLocateRequest request)
     {
@@ -756,6 +870,58 @@ public static class UiAutomationBootstrap
         "subtree" => TreeScope.TreeScope_Subtree,
         _ => throw new ArgumentOutOfRangeException(nameof(scope), scope, "Unsupported tree scope.")
     };
+
+    private static void VisitDescendants(
+        IUIAutomationElement parent,
+        IUIAutomationTreeWalker walker,
+        IUIAutomationCacheRequest? cacheRequest,
+        IUIAutomation automation,
+        List<UiAutomationElementInfo> results,
+        int limit)
+    {
+        if (results.Count >= limit)
+        {
+            return;
+        }
+
+        IUIAutomationElement? current = null;
+        try
+        {
+            current = cacheRequest is null
+                ? walker.GetFirstChildElement(parent)
+                : walker.GetFirstChildElementBuildCache(parent, cacheRequest);
+
+            while (current is not null && results.Count < limit)
+            {
+                IUIAutomationElement? next = null;
+                try
+                {
+                    results.Add(ReadElementInfo(automation, current));
+                    if (results.Count < limit)
+                    {
+                        VisitDescendants(current, walker, cacheRequest, automation, results, limit);
+                    }
+
+                    if (results.Count < limit)
+                    {
+                        next = cacheRequest is null
+                            ? walker.GetNextSiblingElement(current)
+                            : walker.GetNextSiblingElementBuildCache(current, cacheRequest);
+                    }
+                }
+                finally
+                {
+                    FinalRelease(current);
+                }
+
+                current = next;
+            }
+        }
+        finally
+        {
+            FinalRelease(current);
+        }
+    }
 
     private static IUIAutomationCacheRequest? BuildCacheRequest(IUIAutomation automation, UiAutomationCacheRequestInfo? cacheInfo)
     {
