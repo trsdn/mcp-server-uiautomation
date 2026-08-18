@@ -1,0 +1,648 @@
+name: Release All Components
+
+# Unified release workflow for all UIAutomationMcp components:
+# - MCP Server (NuGet .NET tool + self-contained ZIP)
+# - CLI (NuGet .NET tool)
+# - VS Code Extension (VSIX + Marketplace)
+# - MCPB (Claude Desktop bundle)
+# - Agent Skills (ZIP package)
+#
+# All components share the same version.
+# Trigger: workflow_dispatch with a version bump (major/minor/patch) or a custom version.
+# The workflow calculates the next version from the latest git tag, builds every artifact,
+# creates the git tag, publishes to the registries, and finally creates the GitHub release.
+#
+# Required GitHub secrets:
+# - NUGET_USER:  NuGet.org username (profile name, NOT the email address)
+# - VSCE_TOKEN:  VS Code Marketplace personal access token
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_bump:
+        description: 'Version bump type'
+        required: true
+        type: choice
+        default: 'patch'
+        options:
+          - major
+          - minor
+          - patch
+      custom_version:
+        description: 'Custom version (e.g. 1.2.3, overrides version_bump)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_VERSION: '9.0.x'
+  NODE_VERSION: '22'
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 0: Calculate the release version
+  # ---------------------------------------------------------------------------
+  version:
+    name: Calculate Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.calculate_version.outputs.version }}
+      tag: ${{ steps.calculate_version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate version
+        id: calculate_version
+        run: |
+          if [ -n "${{ inputs.custom_version }}" ]; then
+            VERSION="${{ inputs.custom_version }}"
+            echo "Using custom version: ${VERSION}"
+          else
+            LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+            echo "Latest tag: ${LATEST_TAG}"
+            CURRENT_VERSION="${LATEST_TAG#v}"
+            IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT_VERSION"
+            case "${{ inputs.version_bump }}" in
+              major)
+                MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+              minor)
+                MINOR=$((MINOR + 1)); PATCH=0 ;;
+              patch)
+                PATCH=$((PATCH + 1)) ;;
+            esac
+            VERSION="${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Invalid version '$VERSION' (expected MAJOR.MINOR.PATCH)"
+            exit 1
+          fi
+
+          TAG="v${VERSION}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists"
+            exit 1
+          fi
+
+          echo "New version: ${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Job 1: CLI (NuGet .NET tool)
+  # ---------------------------------------------------------------------------
+  build-cli:
+    name: CLI
+    needs: [version]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Restore
+        run: dotnet restore src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj
+
+      - name: Build
+        run: >
+          dotnet build src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj
+          --configuration Release --no-restore
+          -p:Version=${{ env.VERSION }}
+          -p:AssemblyVersion=${{ env.VERSION }}.0
+          -p:FileVersion=${{ env.VERSION }}.0
+
+      - name: Pack NuGet tool
+        run: >
+          dotnet pack src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj
+          --configuration Release --no-build --output ./cli-nupkg
+          -p:Version=${{ env.VERSION }}
+
+      - name: Upload NuGet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-nupkg
+          path: cli-nupkg/*.nupkg
+
+  # ---------------------------------------------------------------------------
+  # Job 2: MCP Server (NuGet .NET tool + self-contained ZIP)
+  # ---------------------------------------------------------------------------
+  build-mcp-server:
+    name: MCP Server
+    needs: [version]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Update server.json version
+        run: |
+          $version = $env:VERSION
+          $path = "src/UIAutomationMcp.McpServer/.mcp/server.json"
+          $json = Get-Content $path -Raw | ConvertFrom-Json
+          $json.version = $version
+          foreach ($package in $json.packages) { $package.version = $version }
+          $json | ConvertTo-Json -Depth 10 | Set-Content $path
+          Get-Content $path
+        shell: pwsh
+
+      - name: Restore
+        run: dotnet restore src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj
+
+      - name: Build
+        run: >
+          dotnet build src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj
+          --configuration Release --no-restore
+          -p:Version=${{ env.VERSION }}
+          -p:AssemblyVersion=${{ env.VERSION }}.0
+          -p:FileVersion=${{ env.VERSION }}.0
+
+      - name: Pack NuGet tool
+        run: >
+          dotnet pack src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj
+          --configuration Release --no-build --output ./nupkg
+          -p:Version=${{ env.VERSION }}
+
+      - name: Publish self-contained bundle
+        run: |
+          $version = $env:VERSION
+          dotnet publish src/UIAutomationMcp.McpServer/UIAutomationMcp.McpServer.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:PublishTrimmed=false -p:PublishReadyToRun=false -p:NuGetAudit=false `
+            -p:Version=$version -p:AssemblyVersion="$version.0" -p:FileVersion="$version.0" `
+            -o ./zip-staging --verbosity quiet
+          dotnet publish src/UIAutomationMcp.CLI/UIAutomationMcp.CLI.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:PublishTrimmed=false -p:PublishReadyToRun=false -p:NuGetAudit=false `
+            -p:Version=$version -p:AssemblyVersion="$version.0" -p:FileVersion="$version.0" `
+            -o ./zip-staging --verbosity quiet
+          Copy-Item README.md ./zip-staging/ -Force
+          Copy-Item LICENSE ./zip-staging/ -Force
+          Copy-Item CHANGELOG.md ./zip-staging/ -Force
+        shell: pwsh
+
+      - name: Verify published binaries
+        run: |
+          $server = "./zip-staging/UIAutomationMcp.McpServer.exe"
+          $cli = "./zip-staging/uiamcp.exe"
+          foreach ($exe in @($server, $cli)) {
+            if (-not (Test-Path $exe)) { throw "Missing published binary: $exe" }
+            $reported = & $exe --version
+            if ($LASTEXITCODE -ne 0) { throw "$exe --version failed" }
+            if ($reported.Trim() -ne $env:VERSION) {
+              throw "$exe reported version '$reported' but expected '$env:VERSION'"
+            }
+            Write-Output "$exe -> $reported"
+          }
+        shell: pwsh
+
+      - name: Create ZIP
+        run: |
+          $version = $env:VERSION
+          New-Item -ItemType Directory -Force -Path ./zip-out | Out-Null
+          Compress-Archive -Path ./zip-staging/* `
+            -DestinationPath "./zip-out/UIAutomationMcp-MCP-Server-$version-windows.zip" -Force
+        shell: pwsh
+
+      - name: Upload NuGet artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-server-nupkg
+          path: nupkg/*.nupkg
+
+      - name: Upload ZIP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-server-zip
+          path: zip-out/*.zip
+
+  # ---------------------------------------------------------------------------
+  # Job 3: VS Code extension (VSIX)
+  # ---------------------------------------------------------------------------
+  build-vscode:
+    name: VS Code Extension
+    needs: [version]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Update project versions
+        run: |
+          $version = $env:VERSION
+          $path = "Directory.Build.props"
+          $content = Get-Content $path -Raw
+          $content = $content -replace '<Version>[\d\.]+</Version>', "<Version>$version</Version>"
+          $content = $content -replace '<AssemblyVersion>[\d\.]+</AssemblyVersion>', "<AssemblyVersion>$version.0</AssemblyVersion>"
+          $content = $content -replace '<FileVersion>[\d\.]+</FileVersion>', "<FileVersion>$version.0</FileVersion>"
+          Set-Content $path $content
+        shell: pwsh
+
+      - name: Update extension version
+        run: |
+          cd vscode-extension
+          npm version "$env:VERSION" --no-git-tag-version
+        shell: pwsh
+
+      - name: Install dependencies
+        run: |
+          cd vscode-extension
+          npm install
+
+      - name: Build and package
+        run: |
+          cd vscode-extension
+          npm run package
+
+      - name: Rename VSIX
+        run: |
+          $version = $env:VERSION
+          cd vscode-extension
+          $vsix = Get-ChildItem -Filter "*.vsix" | Select-Object -First 1
+          if (-not $vsix) { throw "No VSIX produced" }
+          $target = "UIAutomationMcp-$version.vsix"
+          if ($vsix.Name -ne $target) { Rename-Item $vsix.FullName -NewName $target }
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-vsix
+          path: vscode-extension/UIAutomationMcp-*.vsix
+
+  # ---------------------------------------------------------------------------
+  # Job 4: MCPB bundle (Claude Desktop)
+  # ---------------------------------------------------------------------------
+  build-mcpb:
+    name: MCPB Bundle
+    needs: [version]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Build MCPB bundle
+        run: |
+          cd mcpb
+          .\Build-McpBundle.ps1 -Version $env:VERSION
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcpb-bundle
+          path: mcpb/artifacts/uia-mcp-*.mcpb
+
+  # ---------------------------------------------------------------------------
+  # Job 5: Agent skills package
+  # ---------------------------------------------------------------------------
+  build-agent-skills:
+    name: Agent Skills
+    needs: [version]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Package skills
+        run: |
+          $version = $env:VERSION
+          New-Item -ItemType Directory -Force -Path ./skills-out | Out-Null
+          Compress-Archive -Path skills/* `
+            -DestinationPath "./skills-out/uia-skills-v$version.zip" -Force
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-skills
+          path: skills-out/*.zip
+
+  # ---------------------------------------------------------------------------
+  # Job 6: Create the git tag once every artifact built
+  # ---------------------------------------------------------------------------
+  create-tag:
+    name: Create Git Tag
+    needs: [version, build-cli, build-mcp-server, build-vscode, build-mcpb, build-agent-skills]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="${{ needs.version.outputs.tag }}"
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+  # ---------------------------------------------------------------------------
+  # Job 7: Publish to NuGet.org and the VS Code Marketplace
+  # ---------------------------------------------------------------------------
+  publish:
+    name: Publish to Registries
+    needs: [version, create-tag]
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write # required for NuGet OIDC login
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Download MCP server package
+        uses: actions/download-artifact@v4
+        with:
+          name: mcp-server-nupkg
+          path: nupkg
+
+      - name: Download CLI package
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-nupkg
+          path: cli-nupkg
+
+      - name: Download VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-vsix
+          path: vscode-vsix
+
+      - name: NuGet login (OIDC)
+        uses: NuGet/login@v1
+        id: nuget-login
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      - name: Publish to NuGet.org
+        run: |
+          $version = $env:VERSION
+          dotnet nuget push "nupkg/UIAutomationMcp.McpServer.$version.nupkg" `
+            --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} `
+            --source https://api.nuget.org/v3/index.json --skip-duplicate
+          dotnet nuget push "cli-nupkg/UIAutomationMcp.CLI.$version.nupkg" `
+            --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }} `
+            --source https://api.nuget.org/v3/index.json --skip-duplicate
+        shell: pwsh
+
+      - name: Publish to VS Code Marketplace
+        uses: HaaLeo/publish-vscode-extension@v2
+        with:
+          pat: ${{ secrets.VSCE_TOKEN }}
+          registryUrl: https://marketplace.visualstudio.com
+          extensionFile: vscode-vsix/UIAutomationMcp-${{ env.VERSION }}.vsix
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # Job 8: Publish to the MCP registry (needs the NuGet package to be live)
+  # ---------------------------------------------------------------------------
+  publish-mcp-registry:
+    name: MCP Registry
+    needs: [version, publish]
+    runs-on: windows-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Update server.json version
+        run: |
+          $version = $env:VERSION
+          $path = "src/UIAutomationMcp.McpServer/.mcp/server.json"
+          $json = Get-Content $path -Raw | ConvertFrom-Json
+          $json.version = $version
+          foreach ($package in $json.packages) { $package.version = $version }
+          $json | ConvertTo-Json -Depth 10 | Set-Content $path
+        shell: pwsh
+
+      - name: Wait for NuGet propagation
+        run: |
+          $version = $env:VERSION
+          $readmeUrl = "https://api.nuget.org/v3-flatcontainer/uiautomationmcp.mcpserver/$version/readme"
+          $maxAttempts = 3
+          $pollInterval = 600
+          for ($i = 1; $i -le $maxAttempts; $i++) {
+            Write-Output "Attempt $i of $maxAttempts..."
+            try {
+              $response = Invoke-WebRequest -Uri $readmeUrl -UseBasicParsing -ErrorAction Stop
+              if ($response.StatusCode -eq 200) {
+                $content = [System.Text.Encoding]::UTF8.GetString($response.Content)
+                if ($content -match "mcp-name:\s+io\.github\.trsdn/mcp-server-uiautomation") {
+                  Write-Output "README propagated successfully"
+                  break
+                }
+              }
+            } catch {
+              Write-Output "README not yet available"
+            }
+            if ($i -lt $maxAttempts) { Start-Sleep -Seconds $pollInterval }
+          }
+        shell: pwsh
+
+      - name: Install MCP publisher
+        run: |
+          $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture -eq "Arm64") { "arm64" } else { "amd64" }
+          Invoke-WebRequest -Uri "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_windows_$arch.tar.gz" -OutFile "mcp-publisher.tar.gz"
+          tar xf mcp-publisher.tar.gz mcp-publisher.exe
+        shell: pwsh
+
+      - name: Publish to MCP registry
+        run: |
+          ./mcp-publisher.exe login github-oidc
+          Set-Location src/UIAutomationMcp.McpServer/.mcp
+          ../../../mcp-publisher.exe publish --verbose
+        shell: pwsh
+        continue-on-error: true
+
+  # ---------------------------------------------------------------------------
+  # Job 9: Create the GitHub release
+  # ---------------------------------------------------------------------------
+  create-release:
+    name: Create GitHub Release
+    needs: [version, create-tag, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $GITHUB_ENV
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Extract changelog from [Unreleased]
+        id: changelog
+        run: |
+          CHANGELOG_FILE="CHANGELOG.md"
+          if [ -f "$CHANGELOG_FILE" ]; then
+            CONTENT=$(awk '/^## \[Unreleased\]/,/^## \[/' "$CHANGELOG_FILE" | head -n -1 | tail -n +2)
+            if [ -n "$CONTENT" ]; then
+              echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+              echo "$CONTENT" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            else
+              echo "CHANGELOG=See repository for details." >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "CHANGELOG=See repository for details." >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create release
+        run: |
+          VERSION=${{ env.VERSION }}
+          TAG=${{ needs.version.outputs.tag }}
+
+          cat > release_notes.md << 'NOTES'
+          ## UIAutomationMcp ${{ env.VERSION }}
+
+          ### What's New
+          ${{ steps.changelog.outputs.CHANGELOG }}
+
+          ### Installation Options
+
+          **VS Code Extension** (recommended)
+          - Search "UI Automation MCP" in the VS Code Marketplace and click Install
+          - Or download `UIAutomationMcp-${{ env.VERSION }}.vsix` below
+          - Self-contained: no .NET runtime or SDK required
+          - Bundles both the MCP server and the CLI (`uiamcp`)
+          - Agent skills (uia-mcp + uia-cli) are registered automatically via `chatSkills`
+
+          **Claude Desktop (MCPB)**
+          - Download `uia-mcp-${{ env.VERSION }}.mcpb` and double-click to install
+
+          **NuGet (.NET tools)**
+          ```powershell
+          # MCP server (for AI assistants)
+          dotnet tool install --global UIAutomationMcp.McpServer
+
+          # CLI (for coding agents and scripting)
+          dotnet tool install --global UIAutomationMcp.CLI
+          ```
+
+          **Standalone ZIP**
+          - Download `UIAutomationMcp-MCP-Server-${{ env.VERSION }}-windows.zip`
+          - Contains the self-contained MCP server and CLI, no runtime required
+
+          **Agent Skills**
+          - Included automatically with the VS Code extension
+          - Or download `uia-skills-v${{ env.VERSION }}.zip`
+
+          ### Requirements
+          - Windows
+          - An interactive desktop session (UI Automation cannot run headless)
+          - .NET 9 Runtime or SDK (NuGet installation only; the VSIX, MCPB and ZIP bundle it)
+
+          ### Documentation
+          - [GitHub Repository](https://github.com/trsdn/mcp-server-uiautomation)
+          - [Features](https://github.com/trsdn/mcp-server-uiautomation/blob/main/FEATURES.md)
+          - [Changelog](https://github.com/trsdn/mcp-server-uiautomation/blob/main/CHANGELOG.md)
+          NOTES
+
+          ARTIFACTS=""
+          for f in artifacts/mcp-server-zip/*.zip \
+                   artifacts/mcp-server-nupkg/*.nupkg \
+                   artifacts/cli-nupkg/*.nupkg \
+                   artifacts/vscode-vsix/*.vsix \
+                   artifacts/mcpb-bundle/*.mcpb \
+                   artifacts/agent-skills/*.zip; do
+            [ -f "$f" ] && ARTIFACTS="$ARTIFACTS $f"
+          done
+
+          echo "Creating release with artifacts:$ARTIFACTS"
+          gh release create "$TAG" $ARTIFACTS \
+            --title "UIAutomationMcp $VERSION" \
+            --notes-file release_notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update changelog via pull request
+        run: |
+          VERSION=${{ env.VERSION }}
+          DATE=$(date +%Y-%m-%d)
+          BRANCH="chore/changelog-v${VERSION}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+
+          sed -i "s/^## \[Unreleased\]/## [$VERSION] - $DATE/" CHANGELOG.md
+          sed -i "/^## \[$VERSION\] - $DATE/i ## [Unreleased]\n" CHANGELOG.md
+
+          git add CHANGELOG.md
+          git commit -m "chore: update CHANGELOG.md for v${VERSION} release [skip ci]"
+          git push origin "$BRANCH"
+
+          gh pr create \
+            --base main \
+            --head "$BRANCH" \
+            --title "chore: update CHANGELOG.md for v${VERSION} release" \
+            --body "Automated post-release changelog update: renames \`[Unreleased]\` to \`[$VERSION] - $DATE\` and adds a fresh \`[Unreleased]\` section."
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

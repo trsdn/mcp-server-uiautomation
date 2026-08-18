@@ -6,7 +6,40 @@
     <AssemblyName>uiamcp</AssemblyName>
     <RootNamespace>UIAutomationMcp.CLI</RootNamespace>
     <NoWarn>$(NoWarn);CS1591;CA1305;CA1826;CA1869;IDE0040</NoWarn>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>uiamcp</ToolCommandName>
+    <PackageId>UIAutomationMcp.CLI</PackageId>
+    <Title>UIAutomationMcp CLI</Title>
+    <Description>Windows UI Automation CLI for coding agents and scripting. Inspect desktop elements, query trees, read text and selection, and drive control patterns from the terminal with JSON output. Windows only.</Description>
+    <PackageTags>ui-automation;uia;windows;desktop;automation;accessibility;cli;dotnet-tool;ai;agent</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+
+  <!-- Workaround for NETSDK1146: PackAsTool rejects the net9.0-windows TFM.
+       https://github.com/dotnet/sdk/issues/12055 -->
+  <Target Name="HackBeforePackToolValidation" BeforeTargets="_PackToolValidation">
+    <PropertyGroup>
+      <TargetPlatformIdentifier></TargetPlatformIdentifier>
+      <TargetPlatformMoniker></TargetPlatformMoniker>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="HackAfterPackToolValidation" AfterTargets="_PackToolValidation" BeforeTargets="PackTool">
+    <PropertyGroup>
+      <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
+    </PropertyGroup>
+  </Target>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="..\..\vscode-extension\icon.png" Pack="true" PackagePath="\" Visible="false" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\UIAutomationMcp.Service\UIAutomationMcp.Service.csproj" />

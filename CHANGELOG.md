@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- MCP server tool calls failed at runtime because `UiAutomationService` was never registered
+  in the dependency injection container. Every `uia_*` tool now resolves and executes correctly.
+
+### Added
+- `--version` flag for both `uiamcp` and the MCP server executable.
+- NuGet .NET tool packaging for `UIAutomationMcp.CLI` (`uiamcp`) and
+  `UIAutomationMcp.McpServer` (`uiamcp-server`), including the `McpServer` package type.
+- MCPB bundle for Claude Desktop under `mcpb/`, built by `mcpb/Build-McpBundle.ps1`.
+- Unified release workflow (`.github/workflows/release.yml`) that builds and publishes the
+  NuGet tools, VSIX, MCPB bundle, agent skills package, and self-contained ZIP, then creates
+  the GitHub release.
+
 ## [1.0.0]
 
 ### Changed
