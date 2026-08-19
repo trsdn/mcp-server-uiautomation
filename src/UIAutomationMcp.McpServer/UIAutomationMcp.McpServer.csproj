@@ -6,7 +6,49 @@
     <AssemblyName>UIAutomationMcp.McpServer</AssemblyName>
     <RootNamespace>UIAutomationMcp.McpServer</RootNamespace>
     <NoWarn>$(NoWarn);CS1591;CA1822</NoWarn>
+
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>uiamcp-server</ToolCommandName>
+    <PackageId>UIAutomationMcp.McpServer</PackageId>
+    <Title>UIAutomationMcp MCP Server</Title>
+    <Description>Windows UI Automation MCP server for AI assistants. Exposes 17 tools for desktop inspection, element lookup, tree navigation, text and selection reading, control pattern actions, and event waiting. Windows only.</Description>
+    <PackageTags>mcp;model-context-protocol;ui-automation;uia;windows;desktop;automation;accessibility;ai;copilot;claude</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
   </PropertyGroup>
+
+  <!-- .NET 9 SDK unconditionally sets PackageType=DotnetTool when PackAsTool=true.
+       Append McpServer so MCP clients can discover the package. -->
+  <Target Name="_AddMcpServerPackageType" BeforeTargets="GenerateNuspec;Pack">
+    <PropertyGroup>
+      <PackageType>$(PackageType);McpServer</PackageType>
+    </PropertyGroup>
+  </Target>
+
+  <!-- Workaround for NETSDK1146: PackAsTool rejects the net9.0-windows TFM.
+       https://github.com/dotnet/sdk/issues/12055 -->
+  <Target Name="HackBeforePackToolValidation" BeforeTargets="_PackToolValidation">
+    <PropertyGroup>
+      <TargetPlatformIdentifier></TargetPlatformIdentifier>
+      <TargetPlatformMoniker></TargetPlatformMoniker>
+    </PropertyGroup>
+  </Target>
+
+  <Target Name="HackAfterPackToolValidation" AfterTargets="_PackToolValidation" BeforeTargets="PackTool">
+    <PropertyGroup>
+      <TargetPlatformIdentifier>Windows</TargetPlatformIdentifier>
+    </PropertyGroup>
+  </Target>
+
+  <ItemGroup>
+    <None Include="README.md" Pack="true" PackagePath="\" />
+    <None Include="..\..\LICENSE" Pack="true" PackagePath="\" Visible="false" />
+    <None Include="..\..\vscode-extension\icon.png" Pack="true" PackagePath="\" Visible="false" />
+    <None Include=".mcp\server.json" Pack="true" PackagePath="\.mcp\" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
@@ -15,10 +57,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\UIAutomationMcp.Service\UIAutomationMcp.Service.csproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <None Include=".mcp\server.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,47 @@
+{
+  "manifest_version": "0.3",
+  "name": "uia-mcp",
+  "display_name": "Windows UI Automation",
+  "version": "1.0.0",
+  "description": "Inspect and drive the Windows desktop via UI Automation - elements, trees, text, selection, control patterns and events",
+  "long_description": "MCP server for Windows UI Automation. 17 tools to probe the desktop root, resolve elements by name, class name, automation id, window handle or screen point, walk the automation tree, read text and selection, invoke control patterns (focus, invoke, toggle, expand, scroll, move, resize, window commands) and wait for automation events. Windows-only, requires an interactive desktop session.",
+  "author": {
+    "name": "Torsten Mahr",
+    "url": "https://github.com/trsdn"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trsdn/mcp-server-uiautomation"
+  },
+  "homepage": "https://github.com/trsdn/mcp-server-uiautomation",
+  "documentation": "https://github.com/trsdn/mcp-server-uiautomation/blob/main/README.md",
+  "support": "https://github.com/trsdn/mcp-server-uiautomation/issues",
+  "icon": "icon-512.png",
+  "license": "MIT",
+  "keywords": [
+    "ui-automation",
+    "uia",
+    "windows",
+    "desktop",
+    "automation",
+    "accessibility",
+    "inspect",
+    "element",
+    "control-pattern",
+    "win32"
+  ],
+  "server": {
+    "type": "binary",
+    "entry_point": "server/uia-mcp-server",
+    "mcp_config": {
+      "command": "${__dirname}/server/uia-mcp-server",
+      "args": [],
+      "env": {}
+    }
+  },
+  "tools_generated": true,
+  "compatibility": {
+    "claude_desktop": ">=0.10.0",
+    "platforms": ["win32"]
+  }
+}

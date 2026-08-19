@@ -9,6 +9,28 @@ Windows UI Automation toolkit with three aligned entry points:
 - MCP server (`UIAutomationMcp.McpServer`)
 - VS Code extension (`uia-mcp`)
 
+## Install
+
+**VS Code extension** (recommended) — search for "UI Automation MCP" in the Marketplace, or
+install the `UIAutomationMcp-<version>.vsix` from the
+[latest release](https://github.com/trsdn/mcp-server-uiautomation/releases/latest).
+Self-contained; bundles the MCP server, the CLI, and both agent skills.
+
+**Claude Desktop** — download `uia-mcp-<version>.mcpb` from the latest release and
+double-click it.
+
+**NuGet .NET tools**
+
+```powershell
+dotnet tool install --global UIAutomationMcp.McpServer   # MCP server -> uiamcp-server
+dotnet tool install --global UIAutomationMcp.CLI         # CLI        -> uiamcp
+```
+
+**Standalone ZIP** — `UIAutomationMcp-MCP-Server-<version>-windows.zip` contains the
+self-contained MCP server and CLI; no .NET runtime required.
+
+Requires Windows and an interactive desktop session. UI Automation cannot run headless.
+
 ## Lineage
 
 This repository is part of the broader MCP automation lineage and intentionally keeps attribution to earlier work by Stefan Brönner.
@@ -37,6 +59,8 @@ It also keeps the historical reference to Excel MCP as a related sibling project
 - `src\UIAutomationMcp.McpServer`
 - `src\UIAutomationMcp.Smoke`
 - `vscode-extension`
+- `mcpb` — Claude Desktop bundle sources and build script
+- `skills` — agent skills for `uia-cli` and `uia-mcp`
 
 ## Build and validate
 ```powershell
