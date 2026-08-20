@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- ItemContainer and VirtualizedItem pattern support. Element lookups now fall back to
+  `IItemContainerProvider.FindItemByProperty` when a tree search finds nothing, then
+  realize the result, so items a virtualizing list has not materialized (for example
+  the 250th file in a 300-file Explorer folder) can be inspected and acted on without
+  scrolling first. Inspected elements report a `virtualization` block, and a `realize`
+  action is available. The fallback only runs on the path that previously failed; pass
+  `--no-virtualized` (CLI) or `realizeVirtualized: false` (MCP) to opt out.
 - Grid, GridItem, Table, and TableItem pattern support: `gridPattern`,
   `gridItemPattern`, `tablePattern`, and `tableItemPattern` on inspected elements.
 - `uiamcp table` / `uia_table`, which reads a tabular control as a rectangular cell

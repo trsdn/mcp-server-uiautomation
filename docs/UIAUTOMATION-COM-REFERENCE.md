@@ -84,7 +84,7 @@ authoritative status per pattern:
 | Selection / Selection2 | readable | `selection` command |
 | Grid, GridItem, Table, TableItem | readable | `gridPattern`, `gridItemPattern`, `tablePattern`, `tableItemPattern`, `table` command |
 | LegacyIAccessible | detect-only | tracked in the pattern-coverage epic |
-| ItemContainer, VirtualizedItem | detect-only | tracked in the pattern-coverage epic |
+| ItemContainer, VirtualizedItem | readable + actionable | `virtualization`, virtualized-item lookup fallback, `action realize` |
 | Drag, DropTarget, TextChild, TextEdit | detect-only | tracked in the pattern-coverage epic |
 | Annotation, Styles, Spreadsheet, SpreadsheetItem, CustomNavigation, ObjectModel, SynchronizedInput, Transform2, ScrollItem | detect-only | no consumer planned |
 
@@ -134,7 +134,45 @@ Two provider realities shape the payload:
   a resolved `text` that prefers `value` and falls back to `name`.
 - **Virtualized rows may not exist yet.** Cells the provider cannot realize are
   returned with `isUnavailable: true` instead of aborting the read, so a partial table
-  is still usable. Realizing those rows is the subject of the VirtualizedItem work.
+  is still usable. See [ItemContainer and VirtualizedItem](#itemcontainer-and-virtualizeditem)
+  for how those rows are reached.
+
+### ItemContainer and VirtualizedItem
+
+A virtualizing container only materializes the items it is currently showing.
+Explorer backs a 300-file folder with roughly a dozen live `UIItem` elements, so a
+plain tree search for the 250th file fails even though the item plainly exists.
+
+`ItemContainer` is the provider-side escape hatch: `FindItemByProperty` asks the
+container itself, which can answer for items that have no UIA element yet.
+`VirtualizedItem.Realize()` then turns the returned placeholder into a live element.
+
+**Element lookup now falls back to the container automatically.** When a locator
+finds nothing, the resolver walks the search origin and every `ItemContainer`
+descendant, asks each one for the item, realizes the result, and verifies the
+remaining locator criteria on it. Because this only runs on the path that used to
+throw, searches that already succeeded are unchanged; searches that previously
+failed may now succeed and take slightly longer. Pass `--no-virtualized` (CLI) or
+`realizeVirtualized: false` (MCP) to restore the strict tree-only behaviour — useful
+when you are asserting that something is genuinely absent.
+
+`FindItemByProperty` accepts exactly one property, so the fallback picks the most
+selective criterion available (automation id → name → class name → control type) and
+re-checks the rest on the returned element.
+
+Elements that participate in virtualization report a `virtualization` block:
+
+```json
+"virtualization": { "isItemContainer": true, "isVirtualizedItem": false }
+```
+
+The block is omitted (`null`) for elements that support neither pattern.
+`VirtualizedItem` exposes no readable state at all — `Realize()` is its only member —
+so a boolean hint plus `action realize` is the complete surface.
+
+Verified against Explorer: a 400-item folder resolves to 12 live rows, `inspect
+--name "Report 0350"` fails with `--no-virtualized` and succeeds without it, and
+`action select` drives an off-screen item through the same fallback.
 
 ### Element references in pattern state
 

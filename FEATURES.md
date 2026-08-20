@@ -32,6 +32,7 @@
 - supported-pattern discovery
 - pattern state projection for value, range value, toggle, expand/collapse, window, scroll, selection item, multiple view, dock, grid, grid item, table, and table item
 - tabular reads that return a Grid/Table control as a cell matrix with row and column headers
+- virtualization hints (`isItemContainer`, `isVirtualizedItem`) and an automatic ItemContainer fallback that finds and realizes items a virtualizing control has not materialized
 
 ### Service layer
 - `UiAutomationService.ProbeDesktop()`
@@ -68,7 +69,7 @@
 - read text and selection information
 - read tabular controls as a cell matrix with headers
 - wait for one-shot UIA events
-- execute focus, invoke, value, selection, window, transform, scroll, range-value, view-switch, and dock actions
+- execute focus, invoke, value, selection, window, transform, scroll, range-value, view-switch, dock, and realize actions
 
 ### Validation
 - `UIAutomationMcp.Smoke`

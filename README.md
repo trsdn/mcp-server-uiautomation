@@ -48,7 +48,8 @@ It also keeps the historical reference to Excel MCP as a related sibling project
 - supports build-cache requests for inspection, search, and navigation
 - reads text, selection, and key pattern states
 - waits for focus, automation, property-changed, and structure-changed events
-- performs common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, range-value updates, view switching, and docking
+- performs common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, range-value updates, view switching, docking, and realizing virtualized items
+- finds items that a virtualizing list has not materialized yet by asking the container directly, so a search for the 250th row of a 300-row list works without scrolling
 - reads tabular controls as a cell matrix with row and column headers
 - exposes the same expanded surface through CLI and MCP
 - packages the CLI and MCP server inside the VS Code extension

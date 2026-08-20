@@ -16,7 +16,7 @@ Best for:
 - reading text and selection state
 - reading tabular controls as a cell matrix with row and column headers
 - waiting for focus, automation, property, or structure events
-- running supported actions such as focus, invoke, set-value, toggle, expand/collapse, window state changes, move/resize, scroll, range-value updates, view switching, and docking
+- running supported actions such as focus, invoke, set-value, toggle, expand/collapse, window state changes, move/resize, scroll, range-value updates, view switching, docking, and realizing virtualized items
 
 Useful MCP workflows:
 
@@ -28,3 +28,9 @@ Useful MCP workflows:
 - read a grid or table with `uia_table` instead of walking cells with `uia_descendants`
 - wait for the next event with `uia_wait_event`
 - execute actions with `uia_action`
+
+Long lists and grids are virtualized: only the rows currently on screen exist as UI
+Automation elements. `uia_inspect`, `uia_find`, and `uia_action` therefore fall back to
+asking the container for items that have not been materialized, so you can address the
+250th row of a 300-row list without scrolling first. Pass `realizeVirtualized: false`
+when you deliberately want to assert that an element is absent from the live tree.

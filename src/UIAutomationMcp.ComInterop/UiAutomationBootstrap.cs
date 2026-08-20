@@ -694,6 +694,7 @@ public static class UiAutomationBootstrap
                 "set-range-value" => PerformSetRangeValue(element!, request.NumberValue),
                 "set-view" => PerformSetView(element!, request.StringValue, request.IntValue),
                 "dock" => PerformDock(element!, request.StringValue),
+                "realize" => PerformRealize(element!),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.Action, "Unsupported action.")
             };
 
@@ -848,6 +849,16 @@ public static class UiAutomationBootstrap
             var match = cacheRequest is null
                 ? origin.FindFirst(ParseTreeScope(request.Scope), filter)
                 : origin.FindFirstBuildCache(ParseTreeScope(request.Scope), filter, cacheRequest);
+
+            // A virtualized list only materializes the rows currently in view, so a
+            // miss here does not mean the item is absent. Ask the provider directly
+            // before giving up. This only runs on the failure path, so searches that
+            // already succeed are unaffected.
+            if (match is null && request.RealizeVirtualized)
+            {
+                match = TryFindVirtualizedItem(automation, origin, request);
+            }
+
             if (match is null && throwIfNotFound)
             {
                 throw new InvalidOperationException("The requested UI Automation element could not be found.");
@@ -859,6 +870,217 @@ public static class UiAutomationBootstrap
         {
             FinalRelease(filter);
             FinalRelease(origin);
+        }
+    }
+
+    /// <summary>
+    /// Last-resort lookup for items a virtualizing container knows about but has not
+    /// materialized. Walks the origin and any ItemContainer descendants, asks the
+    /// provider via <c>FindItemByProperty</c>, and realizes the result so callers get
+    /// a live element rather than a placeholder.
+    /// </summary>
+    private static IUIAutomationElement? TryFindVirtualizedItem(
+        IUIAutomation automation,
+        IUIAutomationElement origin,
+        UiAutomationLocateRequest request)
+    {
+        var (propertyId, value) = SelectContainerSearchProperty(request);
+        if (propertyId == 0)
+        {
+            return null;
+        }
+
+        foreach (var container in EnumerateItemContainers(automation, origin))
+        {
+            IUIAutomationItemContainerPattern? pattern = null;
+            try
+            {
+                pattern = GetPattern<IUIAutomationItemContainerPattern>(container, UIA_PatternIds.UIA_ItemContainerPatternId);
+                if (pattern is null)
+                {
+                    continue;
+                }
+
+                IUIAutomationElement? found;
+                try
+                {
+                    found = pattern.FindItemByProperty(null!, propertyId, value);
+                }
+                catch (Exception ex) when (ex is COMException or ArgumentException)
+                {
+                    // Providers that advertise ItemContainer but do not implement the
+                    // requested property fail rather than returning null. Interop maps
+                    // E_INVALIDARG to ArgumentException, so both types must be handled.
+                    continue;
+                }
+
+                if (found is null)
+                {
+                    continue;
+                }
+
+                RealizeVirtualizedItem(found);
+                if (MatchesRemainingCriteria(found, request, propertyId))
+                {
+                    return found;
+                }
+
+                FinalRelease(found);
+            }
+            finally
+            {
+                FinalRelease(pattern);
+                if (!ReferenceEquals(container, origin))
+                {
+                    FinalRelease(container);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    private static (int PropertyId, object? Value) SelectContainerSearchProperty(UiAutomationLocateRequest request)
+    {
+        // FindItemByProperty takes exactly one property, so pick the most selective
+        // criterion available and verify the rest on the result.
+        if (!string.IsNullOrWhiteSpace(request.AutomationId))
+        {
+            return (UIA_PropertyIds.UIA_AutomationIdPropertyId, request.AutomationId);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.Name))
+        {
+            return (UIA_PropertyIds.UIA_NamePropertyId, request.Name);
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ClassName))
+        {
+            return (UIA_PropertyIds.UIA_ClassNamePropertyId, request.ClassName);
+        }
+
+        if (request.ControlType.HasValue)
+        {
+            return (UIA_PropertyIds.UIA_ControlTypePropertyId, request.ControlType.Value);
+        }
+
+        return (0, null);
+    }
+
+    private static bool MatchesRemainingCriteria(IUIAutomationElement element, UiAutomationLocateRequest request, int usedPropertyId)
+    {
+        if (usedPropertyId != UIA_PropertyIds.UIA_AutomationIdPropertyId
+            && !string.IsNullOrWhiteSpace(request.AutomationId)
+            && !string.Equals(TryRead(() => element.CurrentAutomationId, null), request.AutomationId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (usedPropertyId != UIA_PropertyIds.UIA_NamePropertyId
+            && !string.IsNullOrWhiteSpace(request.Name)
+            && !string.Equals(TryRead(() => element.CurrentName, null), request.Name, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (usedPropertyId != UIA_PropertyIds.UIA_ClassNamePropertyId
+            && !string.IsNullOrWhiteSpace(request.ClassName)
+            && !string.Equals(TryRead(() => element.CurrentClassName, null), request.ClassName, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        if (usedPropertyId != UIA_PropertyIds.UIA_ControlTypePropertyId
+            && request.ControlType.HasValue
+            && TryRead(() => element.CurrentControlType, 0) != request.ControlType.Value)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.FrameworkId)
+            && !string.Equals(TryRead(() => element.CurrentFrameworkId, null), request.FrameworkId, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        return !request.ProcessId.HasValue || TryRead(() => element.CurrentProcessId, 0) == request.ProcessId.Value;
+    }
+
+    private static IEnumerable<IUIAutomationElement> EnumerateItemContainers(IUIAutomation automation, IUIAutomationElement origin)
+    {
+        if (GetPattern<IUIAutomationItemContainerPattern>(origin, UIA_PatternIds.UIA_ItemContainerPatternId) is { } originPattern)
+        {
+            FinalRelease(originPattern);
+            yield return origin;
+        }
+
+        IUIAutomationCondition? condition = null;
+        IUIAutomationElementArray? containers = null;
+        try
+        {
+            condition = automation.CreatePropertyCondition(UIA_PropertyIds.UIA_IsItemContainerPatternAvailablePropertyId, true);
+            containers = origin.FindAll(TreeScope.TreeScope_Descendants, condition);
+        }
+        catch (Exception ex) when (ex is COMException or ArgumentException)
+        {
+            containers = null;
+        }
+        finally
+        {
+            FinalRelease(condition);
+        }
+
+        if (containers is null)
+        {
+            yield break;
+        }
+
+        try
+        {
+            for (var i = 0; i < containers.Length; i++)
+            {
+                IUIAutomationElement? container;
+                try
+                {
+                    container = containers.GetElement(i);
+                }
+                catch (Exception ex) when (ex is COMException or ArgumentException)
+                {
+                    continue;
+                }
+
+                if (container is not null)
+                {
+                    yield return container;
+                }
+            }
+        }
+        finally
+        {
+            FinalRelease(containers);
+        }
+    }
+
+    private static void RealizeVirtualizedItem(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationVirtualizedItemPattern>(element, UIA_PatternIds.UIA_VirtualizedItemPatternId);
+        if (pattern is null)
+        {
+            return;
+        }
+
+        try
+        {
+            pattern.Realize();
+        }
+        catch (Exception ex) when (ex is COMException or ArgumentException)
+        {
+            // The provider may realize lazily on first access instead; the element is
+            // still usable, so a failure here must not fail the lookup.
+        }
+        finally
+        {
+            FinalRelease(pattern);
         }
     }
 
@@ -1122,7 +1344,8 @@ public static class UiAutomationBootstrap
             GridPattern = ReadGridPattern(element),
             GridItemPattern = ReadGridItemPattern(element),
             TablePattern = ReadTablePattern(element),
-            TableItemPattern = ReadTableItemPattern(element)
+            TableItemPattern = ReadTableItemPattern(element),
+            Virtualization = ReadVirtualization(supportedPatterns)
         };
     }
 
@@ -1473,6 +1696,28 @@ public static class UiAutomationBootstrap
         }
     }
 
+    private static UiAutomationVirtualizationInfo? ReadVirtualization(UiAutomationPatternInfo[] supportedPatterns)
+    {
+        var isItemContainer = false;
+        var isVirtualizedItem = false;
+
+        foreach (var pattern in supportedPatterns)
+        {
+            if (pattern.Id == UIA_PatternIds.UIA_ItemContainerPatternId)
+            {
+                isItemContainer = true;
+            }
+            else if (pattern.Id == UIA_PatternIds.UIA_VirtualizedItemPatternId)
+            {
+                isVirtualizedItem = true;
+            }
+        }
+
+        return isItemContainer || isVirtualizedItem
+            ? new UiAutomationVirtualizationInfo { IsItemContainer = isItemContainer, IsVirtualizedItem = isVirtualizedItem }
+            : null;
+    }
+
     private static IReadOnlyList<UiAutomationElementInfo> ReadElementArray(IUIAutomation automation, IUIAutomationElementArray? elements)
     {
         if (elements is null)
@@ -1597,7 +1842,7 @@ public static class UiAutomationBootstrap
         {
             return element.GetCurrentPattern(patternId) as TPattern;
         }
-        catch (COMException)
+        catch (Exception ex) when (ex is COMException or ArgumentException)
         {
             return null;
         }
@@ -1889,6 +2134,22 @@ public static class UiAutomationBootstrap
             var dockPosition = ParseDockPosition(position);
             pattern.SetDockPosition(dockPosition);
             return $"Dock position changed to {dockPosition}.";
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static string PerformRealize(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationVirtualizedItemPattern>(element, UIA_PatternIds.UIA_VirtualizedItemPatternId)
+            ?? throw new InvalidOperationException("Element does not support the VirtualizedItem pattern.");
+
+        try
+        {
+            pattern.Realize();
+            return "Element realized.";
         }
         finally
         {
