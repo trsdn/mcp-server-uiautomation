@@ -24,7 +24,7 @@ The current UI Automation bundle provides:
 - point-to-element resolution
 - subtree search by name, class name, automation id, framework id, control type, and process id
 - tree navigation with raw, control, and content views
-- text and selection reads
+- text and selection reads, including caret position, annotations, and inline-element containers
 - cache-aware inspect/search/navigation
 - one-shot UIA event waiting
 - common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, range-value updates, view switching, docking, realizing virtualized items, and MSAA default actions

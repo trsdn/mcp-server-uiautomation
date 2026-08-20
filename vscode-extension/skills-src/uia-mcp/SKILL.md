@@ -13,9 +13,9 @@ Best for:
 - resolving elements from screen coordinates
 - inspecting elements with cache-enabled lookups
 - navigating parent, child, and sibling relationships
-- reading text and selection state
+- reading text and selection state, including caret offset, annotations, and TextChild containers
 - reading tabular controls as a cell matrix with row and column headers
-- waiting for focus, automation, property, or structure events
+- waiting for focus, automation, property, structure, or text-edit events
 - running supported actions such as focus, invoke, set-value, toggle, expand/collapse, window state changes, move/resize, scroll, range-value updates, view switching, docking, realizing virtualized items, and MSAA default actions
 
 Useful MCP workflows:
@@ -41,3 +41,11 @@ state flags, keyboard shortcut, default action), fill in an empty name or contro
 from the bridge while marking it via `nameSource` / `localizedControlTypeSource`, and can
 be driven with `uia_action` `default-action` when they support no modern actionable
 pattern.
+
+`uia_text` covers more than the raw string: `caret` gives the caret offset and the text
+of the line it sits on, `annotations` lists marked-up runs such as spelling and grammar
+errors, and `textEdit` reports IME composition state. It also works on elements that are
+not text controls — a hyperlink or an image returns a `textChild` block naming the
+document that contains it and the element's offset within it, which is how you locate an
+inline element inside a page. Use `uia_wait_event` with `eventKind: "text-edit"` to see
+when an app rewrites typed input; the substituted text arrives in `eventStrings`.

@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- TextPattern2, TextChild, and TextEdit support. `text` now additionally reports
+  `caret` (offset plus the text of the caret's line), `annotations` (annotated format
+  runs such as spelling and grammar errors, comments, and highlights, each with type id,
+  resolved type name, offset, length, and text), `textEdit` (active IME composition and
+  conversion target), and `hasTextPattern2` / `hasTextEditPattern`. Elements that are not
+  text controls but sit inside one — hyperlinks, images, inline controls — no longer
+  return an empty result: they report a `textChild` block naming the containing document
+  and the element's range and offset within it. Adds a `text-edit` event kind to
+  `wait-event` / `uia_wait_event` that reports auto-correct, IME composition,
+  composition-finalized, and auto-complete changes together with the substituted text in
+  `eventStrings`.
 - LegacyIAccessible support for MSAA-only applications. Inspected elements report a
   `legacyAccessiblePattern` block (child id, name, value, description, resolved
   `ROLE_SYSTEM_*` role, decoded `STATE_SYSTEM_*` flags, help, keyboard shortcut, and

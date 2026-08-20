@@ -26,9 +26,9 @@
 - tree navigation via parent, child, sibling, and normalize operations
 - raw, control, and content tree walkers
 - build-cache request support for inspect/search/navigation
-- text extraction and selected-text reads
+- text extraction and selected-text reads, plus caret position, annotation runs (spelling and grammar errors, comments, highlights), IME composition state, and TextChild container lookup for inline elements
 - selection-state reads
-- one-shot event waits for focus, automation, property-changed, and structure-changed events
+- one-shot event waits for focus, automation, property-changed, structure-changed, and text-edit (auto-correct, IME composition, auto-complete) events
 - supported-pattern discovery
 - pattern state projection for value, range value, toggle, expand/collapse, window, scroll, selection item, multiple view, dock, grid, grid item, table, table item, and legacy IAccessible
 - tabular reads that return a Grid/Table control as a cell matrix with row and column headers

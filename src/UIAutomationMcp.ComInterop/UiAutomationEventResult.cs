@@ -19,5 +19,16 @@ public sealed class UiAutomationEventResult
 
     public object? Value { get; init; }
 
+    /// <summary>Raw <c>TextEditChangeType</c> reported by a text-edit event.</summary>
+    public int? TextEditChangeType { get; init; }
+
+    public string? TextEditChangeTypeName { get; init; }
+
+    /// <summary>
+    /// Provider-supplied strings describing the change - for auto-correct this is the
+    /// text that was substituted, which is how you tell that typed input was rewritten.
+    /// </summary>
+    public IReadOnlyList<string>? EventStrings { get; init; }
+
     public UiAutomationElementInfo? SourceElement { get; init; }
 }

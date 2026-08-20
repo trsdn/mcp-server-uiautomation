@@ -46,7 +46,7 @@ It also keeps the historical reference to Excel MCP as a related sibling project
 - enumerates descendants from raw, control, or content tree views
 - navigates the UIA tree with raw, control, and content walkers
 - supports build-cache requests for inspection, search, and navigation
-- reads text, selection, and key pattern states
+- reads text, selection, and key pattern states, including caret position, annotation runs such as spelling errors, and the containing document of an inline element
 - waits for focus, automation, property-changed, and structure-changed events
 - performs common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, range-value updates, view switching, docking, realizing virtualized items, and MSAA default actions
 - finds items that a virtualizing list has not materialized yet by asking the container directly, so a search for the 250th row of a 300-row list works without scrolling

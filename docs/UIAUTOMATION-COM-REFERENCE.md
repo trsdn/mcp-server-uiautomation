@@ -80,12 +80,14 @@ authoritative status per pattern:
 | Transform | actionable | `action move`/`resize` |
 | MultipleView | readable + actionable | `multipleViewPattern`, `action set-view` |
 | Dock | readable + actionable | `dockPattern`, `action dock` |
-| Text / Text2 | readable | `text` command |
+| Text / Text2 | readable | `text` command: `caret`, `annotations`, `hasTextPattern2` |
 | Selection / Selection2 | readable | `selection` command |
 | Grid, GridItem, Table, TableItem | readable | `gridPattern`, `gridItemPattern`, `tablePattern`, `tableItemPattern`, `table` command |
 | LegacyIAccessible | readable + actionable | `legacyAccessiblePattern`, `nameSource`/`localizedControlTypeSource`, `action default-action`, `set-value` fallback |
 | ItemContainer, VirtualizedItem | readable + actionable | `virtualization`, virtualized-item lookup fallback, `action realize` |
-| Drag, DropTarget, TextChild, TextEdit | detect-only | tracked in the pattern-coverage epic |
+| TextChild | readable | `text` command: `textChild` (container + offset for inline elements) |
+| TextEdit | readable + observable | `text` command: `textEdit`, `wait-event --event-kind text-edit` |
+| Drag, DropTarget | detect-only | tracked in the pattern-coverage epic |
 | Annotation, Styles, Spreadsheet, SpreadsheetItem, CustomNavigation, ObjectModel, SynchronizedInput, Transform2, ScrollItem | detect-only | no consumer planned |
 
 ### MultipleView
@@ -218,6 +220,63 @@ strict, but when Invoke is missing on an MSAA-bridged element the error points a
 Verified against Character Map: `default-action` on the select button reports
 `Performed the default action 'Druecken'.` and the character actually lands in the
 selection field.
+
+### Text patterns: caret, annotations, TextChild, TextEdit
+
+The base Text pattern answers "what does this control contain". The three companion
+patterns answer the questions that actually come up when driving an editor: where is
+the caret, what did the app mark up, where does an inline element sit in its document,
+and did the app rewrite what was typed.
+
+`text` returns them together:
+
+```json
+{
+  "hasTextPattern2": true,
+  "hasTextEditPattern": true,
+  "caret": { "isActive": true, "offset": 30, "lineText": "Second line here.\r" },
+  "annotations": [
+    { "typeId": 60001, "typeName": "SpellingError", "startOffset": 54, "length": 7, "text": "recieve" }
+  ],
+  "textChild": null,
+  "textEdit": { "activeComposition": "", "conversionTarget": "" }
+}
+```
+
+**Offsets are computed, not read.** `IUIAutomationTextRange` exposes no offset
+property. Every offset here is derived the same way: clone the document range, move
+its end to the target range's start with `MoveEndpointByRange`, and take the length of
+the resulting text. That is one extra cross-process call per offset, which is why
+offsets are only computed where they carry information.
+
+**Annotations are walked, not enumerated.** UI Automation has no "list the
+annotations" API, so the document is walked one *format run* at a time
+(`ExpandToEnclosingUnit(TextUnit_Format)`, then advance) and each run's
+`AnnotationTypes` attribute is read. `AnnotationType_Unknown` (60000) is dropped
+because ordinary unannotated runs report it. The walk is capped at 400 runs: each step
+is a cross-process COM call and documents are unbounded, so a hard cap is preferable to
+an open-ended scan.
+
+**`text` no longer returns null for non-text elements.** A hyperlink or an image is not
+a text control, but it lives inside one, and TextChild is the answer to "where". For
+such an element `text` returns a payload whose only populated field is `textChild`,
+giving the containing document plus the element's range and offset within it — verified
+against Edge, where a link 750 characters into a page reports exactly that offset.
+
+**TextEdit is both readable and observable.** `textEdit` reports the active IME
+composition and conversion target. The interesting part is the event:
+`wait-event --event-kind text-edit` reports auto-correct, IME composition,
+composition-finalized and auto-complete changes, with the substituted text in
+`eventStrings`. Typing `udn` into Notepad with autocorrect on yields:
+
+```json
+{ "textEditChangeTypeName": "TextEditChangeType_AutoCorrect", "eventStrings": ["und"] }
+```
+
+UI Automation subscribes text-edit handlers *per change type* and offers no "any"
+value, so `wait-event` registers the same handler against all four concrete types.
+Passing `TextEditChangeType_None` — the obvious-looking choice — silently subscribes to
+nothing and always times out.
 
 ### Element references in pattern state
 
