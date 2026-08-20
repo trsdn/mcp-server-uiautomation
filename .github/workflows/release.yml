@@ -541,7 +541,7 @@ jobs:
         run: |
           CHANGELOG_FILE="CHANGELOG.md"
           if [ -f "$CHANGELOG_FILE" ]; then
-            CONTENT=$(awk '/^## \[Unreleased\]/,/^## \[/' "$CHANGELOG_FILE" | head -n -1 | tail -n +2)
+            CONTENT=$(awk '/^## \[Unreleased\]/{flag=1; next} /^## \[/{flag=0} flag' "$CHANGELOG_FILE" | sed '1{/^$/d}')
             if [ -n "$CONTENT" ]; then
               echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
               echo "$CONTENT" >> $GITHUB_OUTPUT
