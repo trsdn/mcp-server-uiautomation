@@ -238,10 +238,11 @@ static void WriteHelp()
     Console.WriteLine("  selection [locator flags]");
     Console.WriteLine("  table [locator flags] [--max-rows <n>] [--max-columns <n>]");
     Console.WriteLine("    reads a Grid/Table control as a cell matrix (defaults: 50 rows, 25 columns)");
-    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|scroll|scroll-percent|set-range-value|set-view|dock|realize> [values] [locator flags]");
+    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|scroll|scroll-percent|set-range-value|set-view|dock|realize|default-action> [values] [locator flags]");
     Console.WriteLine("    set-view <view-id|view-name>   switches a MultipleView control (see multipleViewPattern.supportedViews)");
     Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
     Console.WriteLine("    realize                        realizes a virtualized item so it can be read or acted on");
+    Console.WriteLine("    default-action                 runs the MSAA default action (LegacyIAccessible) for controls with no modern actionable pattern");
     Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [locator flags]");
     Console.WriteLine();
     Console.WriteLine("Locator flags:");

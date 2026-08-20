@@ -83,7 +83,7 @@ authoritative status per pattern:
 | Text / Text2 | readable | `text` command |
 | Selection / Selection2 | readable | `selection` command |
 | Grid, GridItem, Table, TableItem | readable | `gridPattern`, `gridItemPattern`, `tablePattern`, `tableItemPattern`, `table` command |
-| LegacyIAccessible | detect-only | tracked in the pattern-coverage epic |
+| LegacyIAccessible | readable + actionable | `legacyAccessiblePattern`, `nameSource`/`localizedControlTypeSource`, `action default-action`, `set-value` fallback |
 | ItemContainer, VirtualizedItem | readable + actionable | `virtualization`, virtualized-item lookup fallback, `action realize` |
 | Drag, DropTarget, TextChild, TextEdit | detect-only | tracked in the pattern-coverage epic |
 | Annotation, Styles, Spreadsheet, SpreadsheetItem, CustomNavigation, ObjectModel, SynchronizedInput, Transform2, ScrollItem | detect-only | no consumer planned |
@@ -173,6 +173,51 @@ so a boolean hint plus `action realize` is the complete surface.
 Verified against Explorer: a 400-item folder resolves to 12 live rows, `inspect
 --name "Report 0350"` fails with `--no-virtualized` and succeeds without it, and
 `action select` drives an off-screen item through the same fallback.
+
+### LegacyIAccessible
+
+Win32 controls, MFC dialogs, and most installers never got a native UI Automation
+provider. UIA bridges their MSAA `IAccessible` implementation instead, and without a
+consumer for that bridge such windows look near-empty: generic control types, missing
+names, no usable actions. They are not unautomatable - the data is just on the other
+side of the bridge.
+
+`legacyAccessiblePattern` surfaces it: `childId`, `name`, `value`, `description`,
+`role` / `roleName`, `state` / `stateNames`, `help`, `keyboardShortcut`, and
+`defaultAction`. `role` is a raw `ROLE_SYSTEM_*` value resolved to a name, and `state`
+is a `STATE_SYSTEM_*` bit field decoded into flag names, so a Character Map button
+reads as:
+
+```json
+"legacyAccessiblePattern": {
+  "roleName": "CheckButton",
+  "stateNames": ["Focusable"],
+  "keyboardShortcut": "Alt+a",
+  "defaultAction": "Druecken"
+}
+```
+
+Note that MSAA roles and UIA control types disagree by design. Character Map's push
+buttons report `ROLE_SYSTEM_CHECKBUTTON` while UIA reports control type `Button`; a
+WinUI title bar reports `ROLE_SYSTEM_CLIENT` where UIA has no localized control type
+at all. Treat `roleName` as provider-reported legacy metadata, not as a second opinion
+on the UIA control type.
+
+**Fallbacks are marked, never silent.** When the native UIA name is empty and the
+bridge has one, `name` is filled from the bridge and `nameSource` becomes `legacy`
+instead of `uia`; `localizedControlType` behaves the same way through
+`localizedControlTypeSource`. Consumers can therefore always tell bridged data from
+native UIA data.
+
+**Actions.** `action default-action` calls `DoDefaultAction()`, which is the only way
+to drive controls that expose no modern actionable pattern. `action set-value` falls
+back to the legacy `SetValue()` when the Value pattern is absent. `action invoke` stays
+strict, but when Invoke is missing on an MSAA-bridged element the error points at
+`default-action` rather than just failing.
+
+Verified against Character Map: `default-action` on the select button reports
+`Performed the default action 'Druecken'.` and the character actually lands in the
+selection field.
 
 ### Element references in pattern state
 

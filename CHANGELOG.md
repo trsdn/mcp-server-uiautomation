@@ -7,6 +7,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- LegacyIAccessible support for MSAA-only applications. Inspected elements report a
+  `legacyAccessiblePattern` block (child id, name, value, description, resolved
+  `ROLE_SYSTEM_*` role, decoded `STATE_SYSTEM_*` flags, help, keyboard shortcut, and
+  default action). An empty native name or localized control type is filled in from the
+  bridge, with the origin marked via `nameSource` and `localizedControlTypeSource` so
+  bridged data stays distinguishable from native UI Automation data. Adds a
+  `default-action` action for controls that expose no modern actionable pattern, a
+  legacy `SetValue` fallback for `set-value` when the Value pattern is absent, and an
+  `invoke` error that points at `default-action` on MSAA-bridged elements.
 - ItemContainer and VirtualizedItem pattern support. Element lookups now fall back to
   `IItemContainerProvider.FindItemByProperty` when a tree search finds nothing, then
   realize the result, so items a virtualizing list has not materialized (for example

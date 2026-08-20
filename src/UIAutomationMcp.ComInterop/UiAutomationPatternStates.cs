@@ -181,3 +181,42 @@ public sealed class UiAutomationVirtualizationInfo
     /// </summary>
     public bool IsVirtualizedItem { get; init; }
 }
+
+/// <summary>
+/// MSAA state bridged through the LegacyIAccessible pattern. Present for elements
+/// whose provider is an <c>IAccessible</c> bridged into UI Automation, which covers
+/// most Win32, MFC, and installer UI.
+/// </summary>
+public sealed class UiAutomationLegacyAccessiblePatternState
+{
+    /// <summary>MSAA child id. Zero means the element is a real object rather than a child of one.</summary>
+    public int ChildId { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+
+    public string Value { get; init; } = string.Empty;
+
+    public string Description { get; init; } = string.Empty;
+
+    /// <summary>Raw <c>ROLE_SYSTEM_*</c> value.</summary>
+    public uint Role { get; init; }
+
+    /// <summary>Resolved <c>ROLE_SYSTEM_*</c> name, or the numeric value when unknown.</summary>
+    public string RoleName { get; init; } = string.Empty;
+
+    /// <summary>Raw <c>STATE_SYSTEM_*</c> bit field.</summary>
+    public uint State { get; init; }
+
+    /// <summary>Decoded <c>STATE_SYSTEM_*</c> flag names.</summary>
+    public IReadOnlyList<string> StateNames { get; init; } = Array.Empty<string>();
+
+    public string Help { get; init; } = string.Empty;
+
+    public string KeyboardShortcut { get; init; } = string.Empty;
+
+    /// <summary>
+    /// The provider's default action, for example "Drucken" or "Press". Executable
+    /// through the <c>default-action</c> verb.
+    /// </summary>
+    public string DefaultAction { get; init; } = string.Empty;
+}
