@@ -80,4 +80,8 @@ public sealed class UiAutomationElementInfo
     public UiAutomationScrollPatternState? ScrollPattern { get; init; }
 
     public UiAutomationSelectionItemPatternState? SelectionItemPattern { get; init; }
+
+    public UiAutomationMultipleViewPatternState? MultipleViewPattern { get; init; }
+
+    public UiAutomationDockPatternState? DockPattern { get; init; }
 }

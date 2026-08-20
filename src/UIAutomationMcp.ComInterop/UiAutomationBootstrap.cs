@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Interop.UIAutomationClient;
 
@@ -574,6 +575,8 @@ public static class UiAutomationBootstrap
                 "scroll" => PerformScroll(element!, request.StringValue, request.SecondStringValue),
                 "scroll-percent" => PerformScrollPercent(element!, request.NumberValue, request.SecondNumberValue),
                 "set-range-value" => PerformSetRangeValue(element!, request.NumberValue),
+                "set-view" => PerformSetView(element!, request.StringValue, request.IntValue),
+                "dock" => PerformDock(element!, request.StringValue),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.Action, "Unsupported action.")
             };
 
@@ -996,7 +999,9 @@ public static class UiAutomationBootstrap
             ExpandCollapsePattern = ReadExpandCollapsePattern(element),
             WindowPattern = ReadWindowPattern(element),
             ScrollPattern = ReadScrollPattern(element),
-            SelectionItemPattern = ReadSelectionItemPattern(automation, element)
+            SelectionItemPattern = ReadSelectionItemPattern(automation, element),
+            MultipleViewPattern = ReadMultipleViewPattern(element),
+            DockPattern = ReadDockPattern(element)
         };
     }
 
@@ -1197,6 +1202,59 @@ public static class UiAutomationBootstrap
         finally
         {
             FinalRelease(selectionContainer);
+            FinalRelease(pattern);
+        }
+    }
+
+    private static UiAutomationMultipleViewPatternState? ReadMultipleViewPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationMultipleViewPattern>(element, UIA_PatternIds.UIA_MultipleViewPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var currentView = pattern.CurrentCurrentView;
+            var supportedViews = TryRead(() => pattern.GetCurrentSupportedViews(), Array.Empty<int>()) ?? Array.Empty<int>();
+
+            return new UiAutomationMultipleViewPatternState
+            {
+                CurrentView = currentView,
+                CurrentViewName = ReadViewName(pattern, currentView),
+                SupportedViews = supportedViews
+                    .Select(id => new UiAutomationViewInfo { Id = id, Name = ReadViewName(pattern, id) })
+                    .ToArray()
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static string ReadViewName(IUIAutomationMultipleViewPattern pattern, int viewId) =>
+        TryRead(() => pattern.GetViewName(viewId), string.Empty) ?? string.Empty;
+
+    private static UiAutomationDockPatternState? ReadDockPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationDockPattern>(element, UIA_PatternIds.UIA_DockPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationDockPatternState
+            {
+                DockPosition = (int)pattern.CurrentDockPosition,
+                DockPositionName = pattern.CurrentDockPosition.ToString()
+            };
+        }
+        finally
+        {
             FinalRelease(pattern);
         }
     }
@@ -1478,6 +1536,88 @@ public static class UiAutomationBootstrap
             FinalRelease(pattern);
         }
     }
+
+    private static string PerformSetView(IUIAutomationElement element, string? view, int? viewId)
+    {
+        var pattern = GetPattern<IUIAutomationMultipleViewPattern>(element, UIA_PatternIds.UIA_MultipleViewPatternId)
+            ?? throw new InvalidOperationException("Element does not support the MultipleView pattern.");
+
+        try
+        {
+            var supportedViews = TryRead(() => pattern.GetCurrentSupportedViews(), Array.Empty<int>()) ?? Array.Empty<int>();
+            var resolved = ResolveViewId(pattern, supportedViews, view, viewId);
+            pattern.SetCurrentView(resolved);
+            return $"View changed to {resolved} ({ReadViewName(pattern, resolved)}).";
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static int ResolveViewId(
+        IUIAutomationMultipleViewPattern pattern,
+        int[] supportedViews,
+        string? view,
+        int? viewId)
+    {
+        var requested = viewId?.ToString(CultureInfo.InvariantCulture) ?? view;
+        if (string.IsNullOrWhiteSpace(requested))
+        {
+            throw new InvalidOperationException("The set-view action requires a view id or view name.");
+        }
+
+        requested = requested.Trim();
+
+        // A numeric argument is only treated as an id when the control actually offers it,
+        // so controls with numeric view names stay addressable by name.
+        if (int.TryParse(requested, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedId)
+            && supportedViews.Contains(parsedId))
+        {
+            return parsedId;
+        }
+
+        foreach (var candidate in supportedViews)
+        {
+            if (string.Equals(ReadViewName(pattern, candidate), requested, StringComparison.OrdinalIgnoreCase))
+            {
+                return candidate;
+            }
+        }
+
+        var available = supportedViews.Length == 0
+            ? "none"
+            : string.Join(", ", supportedViews.Select(id => $"{id}='{ReadViewName(pattern, id)}'"));
+        throw new InvalidOperationException($"Unsupported view '{requested}'. Available views: {available}.");
+    }
+
+    private static string PerformDock(IUIAutomationElement element, string? position)
+    {
+        var pattern = GetPattern<IUIAutomationDockPattern>(element, UIA_PatternIds.UIA_DockPatternId)
+            ?? throw new InvalidOperationException("Element does not support the Dock pattern.");
+
+        try
+        {
+            var dockPosition = ParseDockPosition(position);
+            pattern.SetDockPosition(dockPosition);
+            return $"Dock position changed to {dockPosition}.";
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static DockPosition ParseDockPosition(string? value) => (value ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "top" => DockPosition.DockPosition_Top,
+        "left" => DockPosition.DockPosition_Left,
+        "bottom" => DockPosition.DockPosition_Bottom,
+        "right" => DockPosition.DockPosition_Right,
+        "fill" => DockPosition.DockPosition_Fill,
+        "none" => DockPosition.DockPosition_None,
+        _ => throw new ArgumentOutOfRangeException(nameof(value), value, "Unsupported dock position. Use top, left, bottom, right, fill, or none.")
+    };
 
     private static ScrollAmount ParseScrollAmount(string? value) => (value ?? "no-amount").Trim().ToLowerInvariant() switch
     {
