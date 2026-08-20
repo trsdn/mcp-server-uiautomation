@@ -28,6 +28,7 @@ The current UI Automation bundle provides:
 - cache-aware inspect/search/navigation
 - one-shot UIA event waiting
 - common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, range-value updates, view switching, and docking
+- tabular reads that return a Grid/Table control as a cell matrix with headers
 - bundled CLI and MCP access to the same aligned surface
 
 📚 **[Complete Feature Reference →](https://github.com/trsdn/mcp-server-uiautomation/blob/main/FEATURES.md)**

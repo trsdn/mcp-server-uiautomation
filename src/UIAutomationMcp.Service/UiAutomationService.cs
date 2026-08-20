@@ -42,6 +42,9 @@ public sealed class UiAutomationService
 
     public UiAutomationSelectionInfo? ReadSelection(UiAutomationLocateRequest locator) => UiAutomationBootstrap.ReadSelection(locator);
 
+    public UiAutomationTableInfo? ReadTable(UiAutomationLocateRequest locator, int maxRows = 50, int maxColumns = 25) =>
+        UiAutomationBootstrap.ReadTable(locator, maxRows, maxColumns);
+
     public UiAutomationActionResult PerformAction(UiAutomationActionRequest request) => UiAutomationBootstrap.PerformAction(request);
 
     public UiAutomationEventResult WaitForEvent(UiAutomationEventWaitRequest request) => UiAutomationBootstrap.WaitForEvent(request);

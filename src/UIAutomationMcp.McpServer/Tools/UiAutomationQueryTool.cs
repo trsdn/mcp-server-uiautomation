@@ -201,6 +201,31 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
         string scope = "subtree") =>
         Execute(() => service.ReadSelection(CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView)));
 
+    [McpServerTool(Name = "uia_table")]
+    public string Table(
+        bool root = false,
+        bool focused = false,
+        bool fromFocused = false,
+        long? handle = null,
+        int? x = null,
+        int? y = null,
+        string? name = null,
+        string? className = null,
+        string? automationId = null,
+        string? frameworkId = null,
+        int? controlType = null,
+        int? processId = null,
+        bool cache = false,
+        string cacheScope = "subtree",
+        string cacheView = "control",
+        string scope = "subtree",
+        int maxRows = 50,
+        int maxColumns = 25) =>
+        Execute(() => service.ReadTable(
+            CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView),
+            maxRows,
+            maxColumns));
+
     [McpServerTool(Name = "uia_wait_event")]
     public string WaitEvent(
         string eventKind,

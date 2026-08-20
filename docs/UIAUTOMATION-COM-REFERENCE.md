@@ -82,7 +82,7 @@ authoritative status per pattern:
 | Dock | readable + actionable | `dockPattern`, `action dock` |
 | Text / Text2 | readable | `text` command |
 | Selection / Selection2 | readable | `selection` command |
-| Grid, GridItem, Table, TableItem | detect-only | tracked in the pattern-coverage epic |
+| Grid, GridItem, Table, TableItem | readable | `gridPattern`, `gridItemPattern`, `tablePattern`, `tableItemPattern`, `table` command |
 | LegacyIAccessible | detect-only | tracked in the pattern-coverage epic |
 | ItemContainer, VirtualizedItem | detect-only | tracked in the pattern-coverage epic |
 | Drag, DropTarget, TextChild, TextEdit | detect-only | tracked in the pattern-coverage epic |
@@ -108,6 +108,41 @@ list of available id/name pairs rather than a generic error.
 Dock is rare in practice. Most Win32 and WinForms controls are MSAA-bridged and
 expose only `LegacyIAccessible`; a real `IDockProvider` generally comes from WPF or
 a custom UIA provider.
+
+### Grid and Table
+
+`gridPattern` reports `rowCount`/`columnCount`, `gridItemPattern` reports a cell's
+`row`, `column`, `rowSpan`, `columnSpan`, and its containing grid, `tablePattern`
+reports `rowOrColumnMajor` plus row and column headers, and `tableItemPattern`
+reports the headers a single cell belongs to.
+
+The `table` command (`uia_table` over MCP) reads a whole control as a rectangular
+matrix so callers do not have to walk descendants and reconstruct coordinates:
+
+```text
+uiamcp table --root --class UIItemsView --max-rows 20 --max-columns 4
+```
+
+Limits default to 50 rows and 25 columns and the response reports `returnedRowCount`,
+`returnedColumnCount`, and `truncated`, because grids can be arbitrarily large.
+
+Two provider realities shape the payload:
+
+- **Cell text lives in different places.** Explorer's details view puts the *column
+  title* in the cell's `name` and the actual content in the Value pattern, while many
+  WPF and web grids do the opposite. Each cell therefore exposes `name`, `value`, and
+  a resolved `text` that prefers `value` and falls back to `name`.
+- **Virtualized rows may not exist yet.** Cells the provider cannot realize are
+  returned with `isUnavailable: true` instead of aborting the read, so a partial table
+  is still usable. Realizing those rows is the subject of the VirtualizedItem work.
+
+### Element references in pattern state
+
+Pattern state that points at other elements — a cell's containing grid, a table's
+headers — uses a flat element *reference* (name, class, automation id, control type,
+runtime id, bounds) rather than full element info. This is deliberate: a column
+header is its own column header, so reading full element info would recurse forever,
+and header lists would otherwise dominate the payload.
 
 Future service-layer operations should consider both element identity and supported patterns.
 

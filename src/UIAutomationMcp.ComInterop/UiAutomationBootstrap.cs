@@ -544,6 +544,123 @@ public static class UiAutomationBootstrap
         }
     });
 
+    /// <summary>
+    /// Reads a control that supports the Grid pattern as a rectangular cell matrix,
+    /// including Table pattern headers when the control also exposes them.
+    /// </summary>
+    public static UiAutomationTableInfo? ReadTable(UiAutomationLocateRequest locator, int maxRows = 50, int maxColumns = 25) => RunInSta(() =>
+    {
+        IUIAutomation automation = CreateAutomation();
+        IUIAutomationElement? element = null;
+        IUIAutomationGridPattern? gridPattern = null;
+        IUIAutomationTablePattern? tablePattern = null;
+        IUIAutomationCacheRequest? cacheRequest = null;
+
+        try
+        {
+            cacheRequest = BuildCacheRequest(automation, locator.CacheRequest);
+            element = ResolveElement(automation, locator, throwIfNotFound: true, cacheRequest);
+            gridPattern = GetPattern<IUIAutomationGridPattern>(element!, UIA_PatternIds.UIA_GridPatternId);
+            if (gridPattern is null)
+            {
+                return null;
+            }
+
+            var rowCount = TryRead(() => gridPattern.CurrentRowCount, 0);
+            var columnCount = TryRead(() => gridPattern.CurrentColumnCount, 0);
+            var rowLimit = Math.Clamp(maxRows, 0, Math.Max(rowCount, 0));
+            var columnLimit = Math.Clamp(maxColumns, 0, Math.Max(columnCount, 0));
+
+            var rows = new List<UiAutomationTableRow>(rowLimit);
+            for (var row = 0; row < rowLimit; row++)
+            {
+                var cells = new List<UiAutomationTableCell>(columnLimit);
+                for (var column = 0; column < columnLimit; column++)
+                {
+                    cells.Add(ReadTableCell(gridPattern, row, column));
+                }
+
+                rows.Add(new UiAutomationTableRow { Row = row, Cells = cells });
+            }
+
+            tablePattern = GetPattern<IUIAutomationTablePattern>(element!, UIA_PatternIds.UIA_TablePatternId);
+
+            return new UiAutomationTableInfo
+            {
+                RowCount = rowCount,
+                ColumnCount = columnCount,
+                HasTablePattern = tablePattern is not null,
+                RowOrColumnMajor = tablePattern is null ? null : TryRead(() => (int)tablePattern.CurrentRowOrColumnMajor, 0),
+                RowOrColumnMajorName = tablePattern is null ? null : TryRead(() => tablePattern.CurrentRowOrColumnMajor.ToString(), string.Empty),
+                RowHeaders = tablePattern is null
+                    ? Array.Empty<UiAutomationElementReference>()
+                    : ReadElementReferenceArray(() => tablePattern.GetCurrentRowHeaders()),
+                ColumnHeaders = tablePattern is null
+                    ? Array.Empty<UiAutomationElementReference>()
+                    : ReadElementReferenceArray(() => tablePattern.GetCurrentColumnHeaders()),
+                Rows = rows,
+                ReturnedRowCount = rowLimit,
+                ReturnedColumnCount = columnLimit,
+                Truncated = rowLimit < rowCount || columnLimit < columnCount
+            };
+        }
+        finally
+        {
+            FinalRelease(cacheRequest);
+            FinalRelease(tablePattern);
+            FinalRelease(gridPattern);
+            FinalRelease(element);
+        }
+    });
+
+    private static UiAutomationTableCell ReadTableCell(IUIAutomationGridPattern gridPattern, int row, int column)
+    {
+        IUIAutomationElement? cell = null;
+        IUIAutomationGridItemPattern? gridItem = null;
+        IUIAutomationValuePattern? valuePattern = null;
+
+        try
+        {
+            cell = gridPattern.GetItem(row, column);
+            if (cell is null)
+            {
+                return new UiAutomationTableCell { Row = row, Column = column, IsUnavailable = true };
+            }
+
+            gridItem = GetPattern<IUIAutomationGridItemPattern>(cell, UIA_PatternIds.UIA_GridItemPatternId);
+            valuePattern = GetPattern<IUIAutomationValuePattern>(cell, UIA_PatternIds.UIA_ValuePatternId);
+
+            return new UiAutomationTableCell
+            {
+                // Prefer the cell's own reported coordinates: merged cells report the
+                // origin of the span rather than the coordinates that were requested.
+                Row = gridItem is null ? row : TryRead(() => gridItem.CurrentRow, row),
+                Column = gridItem is null ? column : TryRead(() => gridItem.CurrentColumn, column),
+                RowSpan = gridItem is null ? 1 : TryRead(() => gridItem.CurrentRowSpan, 1),
+                ColumnSpan = gridItem is null ? 1 : TryRead(() => gridItem.CurrentColumnSpan, 1),
+                Name = TryRead(() => cell.CurrentName, string.Empty) ?? string.Empty,
+                ClassName = TryRead(() => cell.CurrentClassName, string.Empty) ?? string.Empty,
+                AutomationId = TryRead(() => cell.CurrentAutomationId, string.Empty) ?? string.Empty,
+                ControlType = TryRead(() => cell.CurrentControlType, 0),
+                LocalizedControlType = TryRead(() => cell.CurrentLocalizedControlType, string.Empty) ?? string.Empty,
+                Value = valuePattern is null ? null : TryRead(() => valuePattern.CurrentValue, null!),
+                IsOffscreen = TryRead(() => cell.CurrentIsOffscreen != 0, false)
+            };
+        }
+        catch (COMException)
+        {
+            // Virtualized rows that have never been realized fail here rather than
+            // returning null, so report the gap instead of aborting the whole read.
+            return new UiAutomationTableCell { Row = row, Column = column, IsUnavailable = true };
+        }
+        finally
+        {
+            FinalRelease(valuePattern);
+            FinalRelease(gridItem);
+            FinalRelease(cell);
+        }
+    }
+
     public static UiAutomationActionResult PerformAction(UiAutomationActionRequest request) => RunInSta(() =>
     {
         IUIAutomation automation = CreateAutomation();
@@ -1001,7 +1118,11 @@ public static class UiAutomationBootstrap
             ScrollPattern = ReadScrollPattern(element),
             SelectionItemPattern = ReadSelectionItemPattern(automation, element),
             MultipleViewPattern = ReadMultipleViewPattern(element),
-            DockPattern = ReadDockPattern(element)
+            DockPattern = ReadDockPattern(element),
+            GridPattern = ReadGridPattern(element),
+            GridItemPattern = ReadGridItemPattern(element),
+            TablePattern = ReadTablePattern(element),
+            TableItemPattern = ReadTableItemPattern(element)
         };
     }
 
@@ -1259,6 +1380,99 @@ public static class UiAutomationBootstrap
         }
     }
 
+    private static UiAutomationGridPatternState? ReadGridPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationGridPattern>(element, UIA_PatternIds.UIA_GridPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationGridPatternState
+            {
+                RowCount = TryRead(() => pattern.CurrentRowCount, 0),
+                ColumnCount = TryRead(() => pattern.CurrentColumnCount, 0)
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static UiAutomationGridItemPatternState? ReadGridItemPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationGridItemPattern>(element, UIA_PatternIds.UIA_GridItemPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationGridItemPatternState
+            {
+                Row = TryRead(() => pattern.CurrentRow, -1),
+                Column = TryRead(() => pattern.CurrentColumn, -1),
+                RowSpan = TryRead(() => pattern.CurrentRowSpan, 1),
+                ColumnSpan = TryRead(() => pattern.CurrentColumnSpan, 1),
+                ContainingGrid = ReadElementReference(() => pattern.CurrentContainingGrid)
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static UiAutomationTablePatternState? ReadTablePattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationTablePattern>(element, UIA_PatternIds.UIA_TablePatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationTablePatternState
+            {
+                RowOrColumnMajor = TryRead(() => (int)pattern.CurrentRowOrColumnMajor, 0),
+                RowOrColumnMajorName = TryRead(() => pattern.CurrentRowOrColumnMajor.ToString(), string.Empty) ?? string.Empty,
+                RowHeaders = ReadElementReferenceArray(() => pattern.GetCurrentRowHeaders()),
+                ColumnHeaders = ReadElementReferenceArray(() => pattern.GetCurrentColumnHeaders())
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static UiAutomationTableItemPatternState? ReadTableItemPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationTableItemPattern>(element, UIA_PatternIds.UIA_TableItemPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationTableItemPatternState
+            {
+                RowHeaderItems = ReadElementReferenceArray(() => pattern.GetCurrentRowHeaderItems()),
+                ColumnHeaderItems = ReadElementReferenceArray(() => pattern.GetCurrentColumnHeaderItems())
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
     private static IReadOnlyList<UiAutomationElementInfo> ReadElementArray(IUIAutomation automation, IUIAutomationElementArray? elements)
     {
         if (elements is null)
@@ -1301,6 +1515,80 @@ public static class UiAutomationBootstrap
             FinalRelease(element);
         }
     }
+
+    private static UiAutomationElementReference? ReadElementReference(Func<IUIAutomationElement?> getter)
+    {
+        IUIAutomationElement? element = null;
+        try
+        {
+            element = getter();
+            return element is null ? null : ToElementReference(element);
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+        finally
+        {
+            FinalRelease(element);
+        }
+    }
+
+    private static IReadOnlyList<UiAutomationElementReference> ReadElementReferenceArray(Func<IUIAutomationElementArray?> getter)
+    {
+        IUIAutomationElementArray? array = null;
+        try
+        {
+            array = getter();
+            if (array is null)
+            {
+                return Array.Empty<UiAutomationElementReference>();
+            }
+
+            var results = new List<UiAutomationElementReference>(array.Length);
+            for (var i = 0; i < array.Length; i++)
+            {
+                IUIAutomationElement? item = null;
+                try
+                {
+                    item = array.GetElement(i);
+                    if (item is not null)
+                    {
+                        results.Add(ToElementReference(item));
+                    }
+                }
+                catch (COMException)
+                {
+                    // Skip entries the provider cannot realize.
+                }
+                finally
+                {
+                    FinalRelease(item);
+                }
+            }
+
+            return results;
+        }
+        catch (COMException)
+        {
+            return Array.Empty<UiAutomationElementReference>();
+        }
+        finally
+        {
+            FinalRelease(array);
+        }
+    }
+
+    private static UiAutomationElementReference ToElementReference(IUIAutomationElement element) => new()
+    {
+        Name = TryRead(() => element.CurrentName, string.Empty) ?? string.Empty,
+        ClassName = TryRead(() => element.CurrentClassName, string.Empty) ?? string.Empty,
+        AutomationId = TryRead(() => element.CurrentAutomationId, string.Empty) ?? string.Empty,
+        ControlType = TryRead(() => element.CurrentControlType, 0),
+        LocalizedControlType = TryRead(() => element.CurrentLocalizedControlType, string.Empty) ?? string.Empty,
+        RuntimeId = ReadRuntimeId(element),
+        BoundingRectangle = TryRead<UiAutomationRect?>(() => ToRect(element.CurrentBoundingRectangle), null)
+    };
 
     private static TPattern? GetPattern<TPattern>(IUIAutomationElement element, int patternId)
         where TPattern : class

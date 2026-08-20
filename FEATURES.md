@@ -30,7 +30,8 @@
 - selection-state reads
 - one-shot event waits for focus, automation, property-changed, and structure-changed events
 - supported-pattern discovery
-- pattern state projection for value, range value, toggle, expand/collapse, window, scroll, selection item, multiple view, and dock
+- pattern state projection for value, range value, toggle, expand/collapse, window, scroll, selection item, multiple view, dock, grid, grid item, table, and table item
+- tabular reads that return a Grid/Table control as a cell matrix with row and column headers
 
 ### Service layer
 - `UiAutomationService.ProbeDesktop()`
@@ -65,6 +66,7 @@
 - navigate UIA trees from the same locator model
 - opt into build-cache requests
 - read text and selection information
+- read tabular controls as a cell matrix with headers
 - wait for one-shot UIA events
 - execute focus, invoke, value, selection, window, transform, scroll, range-value, view-switch, and dock actions
 
