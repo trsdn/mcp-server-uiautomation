@@ -30,7 +30,7 @@
 - selection-state reads
 - one-shot event waits for focus, automation, property-changed, and structure-changed events
 - supported-pattern discovery
-- pattern state projection for value, range value, toggle, expand/collapse, window, scroll, selection item, multiple view, dock, grid, grid item, table, and table item
+- pattern state projection for value, range value, toggle, expand/collapse, window, scroll, selection item, multiple view, dock, grid, grid item, table, table item, and legacy IAccessible
 - tabular reads that return a Grid/Table control as a cell matrix with row and column headers
 - virtualization hints (`isItemContainer`, `isVirtualizedItem`) and an automatic ItemContainer fallback that finds and realizes items a virtualizing control has not materialized
 
@@ -69,7 +69,7 @@
 - read text and selection information
 - read tabular controls as a cell matrix with headers
 - wait for one-shot UIA events
-- execute focus, invoke, value, selection, window, transform, scroll, range-value, view-switch, dock, and realize actions
+- execute focus, invoke, value, selection, window, transform, scroll, range-value, view-switch, dock, realize, and default-action verbs
 
 ### Validation
 - `UIAutomationMcp.Smoke`

@@ -94,4 +94,18 @@ public sealed class UiAutomationElementInfo
     public UiAutomationTableItemPatternState? TableItemPattern { get; init; }
 
     public UiAutomationVirtualizationInfo? Virtualization { get; init; }
+
+    public UiAutomationLegacyAccessiblePatternState? LegacyAccessiblePattern { get; init; }
+
+    /// <summary>
+    /// Where <see cref="Name"/> came from: <c>uia</c> for a native UI Automation name,
+    /// <c>legacy</c> when the native name was empty and the MSAA bridge supplied one.
+    /// </summary>
+    public string NameSource { get; init; } = "uia";
+
+    /// <summary>
+    /// Where <see cref="LocalizedControlType"/> came from: <c>uia</c> or <c>legacy</c>
+    /// when it was filled in from the bridged MSAA role.
+    /// </summary>
+    public string LocalizedControlTypeSource { get; init; } = "uia";
 }

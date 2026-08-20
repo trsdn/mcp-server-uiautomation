@@ -16,7 +16,7 @@ Best for:
 - reading text and selection state
 - reading tabular controls as a cell matrix with row and column headers
 - waiting for focus, automation, property, or structure events
-- running supported actions such as focus, invoke, set-value, toggle, expand/collapse, window state changes, move/resize, scroll, range-value updates, view switching, docking, and realizing virtualized items
+- running supported actions such as focus, invoke, set-value, toggle, expand/collapse, window state changes, move/resize, scroll, range-value updates, view switching, docking, realizing virtualized items, and MSAA default actions
 
 Useful MCP workflows:
 
@@ -34,3 +34,10 @@ Automation elements. `uia_inspect`, `uia_find`, and `uia_action` therefore fall 
 asking the container for items that have not been materialized, so you can address the
 250th row of a 300-row list without scrolling first. Pass `realizeVirtualized: false`
 when you deliberately want to assert that an element is absent from the live tree.
+
+Old Win32, MFC, and installer windows expose no real UI Automation provider; UIA bridges
+their MSAA data instead. Those elements report a `legacyAccessiblePattern` block (role,
+state flags, keyboard shortcut, default action), fill in an empty name or control type
+from the bridge while marking it via `nameSource` / `localizedControlTypeSource`, and can
+be driven with `uia_action` `default-action` when they support no modern actionable
+pattern.

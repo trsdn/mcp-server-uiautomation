@@ -695,6 +695,7 @@ public static class UiAutomationBootstrap
                 "set-view" => PerformSetView(element!, request.StringValue, request.IntValue),
                 "dock" => PerformDock(element!, request.StringValue),
                 "realize" => PerformRealize(element!),
+                "default-action" => PerformDefaultAction(element!),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.Action, "Unsupported action.")
             };
 
@@ -1298,13 +1299,30 @@ public static class UiAutomationBootstrap
         var runtimeId = ReadRuntimeId(element);
         var supportedPatterns = ReadSupportedPatterns(automation, element);
         var bounds = element.CurrentBoundingRectangle;
+        var legacy = ReadLegacyAccessiblePattern(element);
+
+        var name = element.CurrentName ?? string.Empty;
+        var nameSource = "uia";
+        if (string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(legacy?.Name))
+        {
+            name = legacy!.Name;
+            nameSource = "legacy";
+        }
+
+        var localizedControlType = element.CurrentLocalizedControlType ?? string.Empty;
+        var localizedControlTypeSource = "uia";
+        if (string.IsNullOrEmpty(localizedControlType) && !string.IsNullOrEmpty(legacy?.RoleName))
+        {
+            localizedControlType = legacy!.RoleName;
+            localizedControlTypeSource = "legacy";
+        }
 
         return new UiAutomationElementInfo
         {
-            Name = element.CurrentName ?? string.Empty,
+            Name = name,
             ClassName = element.CurrentClassName ?? string.Empty,
             ControlType = element.CurrentControlType,
-            LocalizedControlType = element.CurrentLocalizedControlType ?? string.Empty,
+            LocalizedControlType = localizedControlType,
             ProcessId = element.CurrentProcessId,
             AutomationId = element.CurrentAutomationId ?? string.Empty,
             FrameworkId = element.CurrentFrameworkId ?? string.Empty,
@@ -1345,7 +1363,10 @@ public static class UiAutomationBootstrap
             GridItemPattern = ReadGridItemPattern(element),
             TablePattern = ReadTablePattern(element),
             TableItemPattern = ReadTableItemPattern(element),
-            Virtualization = ReadVirtualization(supportedPatterns)
+            Virtualization = ReadVirtualization(supportedPatterns),
+            LegacyAccessiblePattern = legacy,
+            NameSource = nameSource,
+            LocalizedControlTypeSource = localizedControlTypeSource
         };
     }
 
@@ -1696,6 +1717,90 @@ public static class UiAutomationBootstrap
         }
     }
 
+    private static readonly string[] MsaaRoleNames =
+    [
+        "TitleBar", "MenuBar", "ScrollBar", "Grip", "Sound", "Cursor", "Caret", "Alert",
+        "Window", "Client", "MenuPopup", "MenuItem", "ToolTip", "Application", "Document",
+        "Pane", "Chart", "Dialog", "Border", "Grouping", "Separator", "ToolBar", "StatusBar",
+        "Table", "ColumnHeader", "RowHeader", "Column", "Row", "Cell", "Link", "HelpBalloon",
+        "Character", "List", "ListItem", "Outline", "OutlineItem", "PageTab", "PropertyPage",
+        "Indicator", "Graphic", "StaticText", "Text", "PushButton", "CheckButton",
+        "RadioButton", "ComboBox", "DropList", "ProgressBar", "Dial", "HotkeyField", "Slider",
+        "SpinButton", "Diagram", "Animation", "Equation", "ButtonDropDown", "ButtonMenu",
+        "ButtonDropDownGrid", "Whitespace", "PageTabList", "Clock", "SplitButton",
+        "IpAddress", "OutlineButton"
+    ];
+
+    private static readonly (uint Flag, string Name)[] MsaaStateFlags =
+    [
+        (0x00000001u, "Unavailable"), (0x00000002u, "Selected"), (0x00000004u, "Focused"),
+        (0x00000008u, "Pressed"), (0x00000010u, "Checked"), (0x00000020u, "Mixed"),
+        (0x00000040u, "ReadOnly"), (0x00000080u, "HotTracked"), (0x00000100u, "Default"),
+        (0x00000200u, "Expanded"), (0x00000400u, "Collapsed"), (0x00000800u, "Busy"),
+        (0x00001000u, "Floating"), (0x00002000u, "Marqueed"), (0x00004000u, "Animated"),
+        (0x00008000u, "Invisible"), (0x00010000u, "Offscreen"), (0x00020000u, "Sizeable"),
+        (0x00040000u, "Moveable"), (0x00080000u, "SelfVoicing"), (0x00100000u, "Focusable"),
+        (0x00200000u, "Selectable"), (0x00400000u, "Linked"), (0x00800000u, "Traversed"),
+        (0x01000000u, "MultiSelectable"), (0x02000000u, "ExtSelectable"),
+        (0x04000000u, "AlertLow"), (0x08000000u, "AlertMedium"), (0x10000000u, "AlertHigh"),
+        (0x20000000u, "Protected"), (0x40000000u, "HasPopup")
+    ];
+
+    private static string MsaaRoleName(uint role) =>
+        role < (uint)MsaaRoleNames.Length ? MsaaRoleNames[role] : role.ToString(CultureInfo.InvariantCulture);
+
+    private static string[] MsaaStateNames(uint state)
+    {
+        var names = new List<string>();
+        foreach (var (flag, name) in MsaaStateFlags)
+        {
+            if ((state & flag) != 0)
+            {
+                names.Add(name);
+            }
+        }
+
+        return [.. names];
+    }
+
+    /// <summary>
+    /// Reads the MSAA state a provider exposes through the LegacyIAccessible bridge.
+    /// This is the only structured data many Win32, MFC, and installer windows offer.
+    /// </summary>
+    private static UiAutomationLegacyAccessiblePatternState? ReadLegacyAccessiblePattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationLegacyIAccessiblePattern>(element, UIA_PatternIds.UIA_LegacyIAccessiblePatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var role = TryRead(() => pattern.CurrentRole, 0u);
+            var state = TryRead(() => pattern.CurrentState, 0u);
+
+            return new UiAutomationLegacyAccessiblePatternState
+            {
+                ChildId = TryRead(() => pattern.CurrentChildId, 0),
+                Name = TryRead(() => pattern.CurrentName, string.Empty) ?? string.Empty,
+                Value = TryRead(() => pattern.CurrentValue, string.Empty) ?? string.Empty,
+                Description = TryRead(() => pattern.CurrentDescription, string.Empty) ?? string.Empty,
+                Role = role,
+                RoleName = MsaaRoleName(role),
+                State = state,
+                StateNames = MsaaStateNames(state),
+                Help = TryRead(() => pattern.CurrentHelp, string.Empty) ?? string.Empty,
+                KeyboardShortcut = TryRead(() => pattern.CurrentKeyboardShortcut, string.Empty) ?? string.Empty,
+                DefaultAction = TryRead(() => pattern.CurrentDefaultAction, string.Empty) ?? string.Empty
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
     private static UiAutomationVirtualizationInfo? ReadVirtualization(UiAutomationPatternInfo[] supportedPatterns)
     {
         var isItemContainer = false;
@@ -1856,8 +1961,19 @@ public static class UiAutomationBootstrap
 
     private static string PerformInvoke(IUIAutomationElement element)
     {
-        var pattern = GetPattern<IUIAutomationInvokePattern>(element, UIA_PatternIds.UIA_InvokePatternId)
-            ?? throw new InvalidOperationException("Element does not support the Invoke pattern.");
+        var pattern = GetPattern<IUIAutomationInvokePattern>(element, UIA_PatternIds.UIA_InvokePatternId);
+        if (pattern is null)
+        {
+            var hasLegacy = GetPattern<IUIAutomationLegacyIAccessiblePattern>(element, UIA_PatternIds.UIA_LegacyIAccessiblePatternId);
+            if (hasLegacy is not null)
+            {
+                FinalRelease(hasLegacy);
+                throw new InvalidOperationException(
+                    "Element does not support the Invoke pattern. It is MSAA-bridged, so try the 'default-action' action.");
+            }
+
+            throw new InvalidOperationException("Element does not support the Invoke pattern.");
+        }
 
         try
         {
@@ -1870,10 +1986,34 @@ public static class UiAutomationBootstrap
         }
     }
 
+    private static string PerformDefaultAction(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationLegacyIAccessiblePattern>(element, UIA_PatternIds.UIA_LegacyIAccessiblePatternId)
+            ?? throw new InvalidOperationException("Element does not support the LegacyIAccessible pattern.");
+
+        try
+        {
+            var description = TryRead(() => pattern.CurrentDefaultAction, string.Empty);
+            pattern.DoDefaultAction();
+            return string.IsNullOrEmpty(description)
+                ? "Performed the default action."
+                : $"Performed the default action '{description}'.";
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
     private static string PerformSetValue(IUIAutomationElement element, string? value)
     {
-        var pattern = GetPattern<IUIAutomationValuePattern>(element, UIA_PatternIds.UIA_ValuePatternId)
-            ?? throw new InvalidOperationException("Element does not support the Value pattern.");
+        var pattern = GetPattern<IUIAutomationValuePattern>(element, UIA_PatternIds.UIA_ValuePatternId);
+        if (pattern is null)
+        {
+            // MSAA-bridged controls often expose no Value pattern but can still be
+            // written through the legacy interface.
+            return PerformLegacySetValue(element, value);
+        }
 
         try
         {
@@ -1883,6 +2023,22 @@ public static class UiAutomationBootstrap
         finally
         {
             FinalRelease(pattern);
+        }
+    }
+
+    private static string PerformLegacySetValue(IUIAutomationElement element, string? value)
+    {
+        var legacy = GetPattern<IUIAutomationLegacyIAccessiblePattern>(element, UIA_PatternIds.UIA_LegacyIAccessiblePatternId)
+            ?? throw new InvalidOperationException("Element does not support the Value pattern.");
+
+        try
+        {
+            legacy.SetValue(value ?? string.Empty);
+            return "Value updated through the LegacyIAccessible pattern.";
+        }
+        finally
+        {
+            FinalRelease(legacy);
         }
     }
 
