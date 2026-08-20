@@ -77,6 +77,7 @@ static UiAutomationLocateRequest BuildLocateRequest(CliInput input, bool require
         AutomationId = input.GetOption("--automation-id"),
         FrameworkId = input.GetOption("--framework-id"),
         Scope = input.GetOption("--scope") ?? "subtree",
+        RealizeVirtualized = !input.HasFlag("--no-virtualized"),
         CacheRequest = BuildCacheRequest(input)
     };
 
@@ -237,9 +238,10 @@ static void WriteHelp()
     Console.WriteLine("  selection [locator flags]");
     Console.WriteLine("  table [locator flags] [--max-rows <n>] [--max-columns <n>]");
     Console.WriteLine("    reads a Grid/Table control as a cell matrix (defaults: 50 rows, 25 columns)");
-    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|scroll|scroll-percent|set-range-value|set-view|dock> [values] [locator flags]");
+    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|scroll|scroll-percent|set-range-value|set-view|dock|realize> [values] [locator flags]");
     Console.WriteLine("    set-view <view-id|view-name>   switches a MultipleView control (see multipleViewPattern.supportedViews)");
     Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
+    Console.WriteLine("    realize                        realizes a virtualized item so it can be read or acted on");
     Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [locator flags]");
     Console.WriteLine();
     Console.WriteLine("Locator flags:");
@@ -255,6 +257,7 @@ static void WriteHelp()
     Console.WriteLine("  --control-type <id>");
     Console.WriteLine("  --process-id <pid>");
     Console.WriteLine("  --scope <element|children|descendants|subtree>");
+    Console.WriteLine("  --no-virtualized                 do not ask ItemContainer providers for items missing from the live tree");
     Console.WriteLine("  --cache");
     Console.WriteLine("  --cache-scope <element|children|descendants|subtree>");
     Console.WriteLine("  --cache-view <raw|control|content>");

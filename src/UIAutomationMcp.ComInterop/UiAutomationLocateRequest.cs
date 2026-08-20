@@ -31,5 +31,12 @@ public sealed class UiAutomationLocateRequest
 
     public string Scope { get; set; } = "subtree";
 
+    /// <summary>
+    /// When a selector finds nothing in the live tree, ask any ItemContainer provider
+    /// in scope whether it knows the item and realize it. Only runs on the failure
+    /// path, so it costs nothing for searches that already succeed. Defaults to true.
+    /// </summary>
+    public bool RealizeVirtualized { get; set; } = true;
+
     public UiAutomationCacheRequestInfo? CacheRequest { get; set; }
 }

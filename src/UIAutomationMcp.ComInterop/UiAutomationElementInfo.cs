@@ -92,4 +92,6 @@ public sealed class UiAutomationElementInfo
     public UiAutomationTablePatternState? TablePattern { get; init; }
 
     public UiAutomationTableItemPatternState? TableItemPattern { get; init; }
+
+    public UiAutomationVirtualizationInfo? Virtualization { get; init; }
 }

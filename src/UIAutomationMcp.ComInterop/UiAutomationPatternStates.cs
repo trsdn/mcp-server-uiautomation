@@ -161,3 +161,23 @@ public sealed class UiAutomationTableItemPatternState
 
     public IReadOnlyList<UiAutomationElementReference> ColumnHeaderItems { get; init; } = Array.Empty<UiAutomationElementReference>();
 }
+
+/// <summary>
+/// Virtualization hints for an element. Present only when the element takes part
+/// in virtualization, so its absence means the ordinary tree is authoritative.
+/// </summary>
+public sealed class UiAutomationVirtualizationInfo
+{
+    /// <summary>
+    /// The element supports the ItemContainer pattern, so it can find items its
+    /// provider knows about but has not materialized. A descendant listing of this
+    /// element may therefore be incomplete.
+    /// </summary>
+    public bool IsItemContainer { get; init; }
+
+    /// <summary>
+    /// The element supports the VirtualizedItem pattern, so it is a placeholder that
+    /// must be realized before it can be reliably read or acted on.
+    /// </summary>
+    public bool IsVirtualizedItem { get; init; }
+}
