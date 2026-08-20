@@ -243,7 +243,8 @@ static void WriteHelp()
     Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
     Console.WriteLine("    realize                        realizes a virtualized item so it can be read or acted on");
     Console.WriteLine("    default-action                 runs the MSAA default action (LegacyIAccessible) for controls with no modern actionable pattern");
-    Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [locator flags]");
+    Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure|text-edit> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [locator flags]");
+    Console.WriteLine("    text-edit                      observes auto-correct, IME composition, and auto-complete changes (TextEdit pattern)");
     Console.WriteLine();
     Console.WriteLine("Locator flags:");
     Console.WriteLine("  --root");

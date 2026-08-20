@@ -36,7 +36,7 @@ Everything is bundled — no .NET runtime or SDK is required.
 | `uia_children` | List direct children of an element |
 | `uia_descendants` | List descendants of an element |
 | `uia_navigate` | Walk parent, child, and sibling relationships |
-| `uia_text` | Read text content via the Text pattern |
+| `uia_text` | Read text content, caret, annotations, TextChild container, and IME composition state |
 | `uia_selection` | Read selection state via the Selection pattern |
 | `uia_table` | Read a Grid/Table control as a cell matrix with headers |
 | `uia_action` | Invoke, focus, toggle, expand, scroll, resize, and more |

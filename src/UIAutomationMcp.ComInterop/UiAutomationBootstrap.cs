@@ -355,7 +355,12 @@ public static class UiAutomationBootstrap
             textPattern = GetPattern<IUIAutomationTextPattern>(element!, UIA_PatternIds.UIA_TextPatternId);
             if (textPattern is null)
             {
-                return null;
+                // The element may still be an inline child of a text container, which is
+                // exactly the case TextChild exists for.
+                var childOnly = ReadTextChild(element!);
+                return childOnly is null
+                    ? null
+                    : new UiAutomationTextInfo { TextChild = childOnly };
             }
 
             documentRange = textPattern.DocumentRange;
@@ -379,13 +384,30 @@ public static class UiAutomationBootstrap
                 }
             }
 
-            return new UiAutomationTextInfo
+            var textPattern2 = GetPattern<IUIAutomationTextPattern2>(element!, UIA_PatternIds.UIA_TextPattern2Id);
+            var textEditPattern = GetPattern<IUIAutomationTextEditPattern>(element!, UIA_PatternIds.UIA_TextEditPatternId);
+
+            try
             {
-                Text = documentRange?.GetText(-1) ?? string.Empty,
-                SupportedTextSelection = (int)textPattern.SupportedTextSelection,
-                SupportedTextSelectionName = textPattern.SupportedTextSelection.ToString(),
-                SelectedTexts = selectedTexts
-            };
+                return new UiAutomationTextInfo
+                {
+                    Text = documentRange?.GetText(-1) ?? string.Empty,
+                    SupportedTextSelection = (int)textPattern.SupportedTextSelection,
+                    SupportedTextSelectionName = textPattern.SupportedTextSelection.ToString(),
+                    SelectedTexts = selectedTexts,
+                    HasTextPattern2 = textPattern2 is not null,
+                    HasTextEditPattern = textEditPattern is not null,
+                    Caret = ReadCaret(textPattern2, documentRange),
+                    Annotations = ReadAnnotations(documentRange),
+                    TextChild = ReadTextChild(element!),
+                    TextEdit = ReadTextEdit(textEditPattern)
+                };
+            }
+            finally
+            {
+                FinalRelease(textEditPattern);
+                FinalRelease(textPattern2);
+            }
         }
         finally
         {
@@ -452,6 +474,7 @@ public static class UiAutomationBootstrap
         AutomationEventHandler? automationHandler = null;
         PropertyChangedEventHandler? propertyHandler = null;
         StructureChangedEventHandler? structureHandler = null;
+        TextEditEventHandler? textEditHandler = null;
 
         try
         {
@@ -490,6 +513,23 @@ public static class UiAutomationBootstrap
                     automation.AddStructureChangedEventHandler(origin, ParseTreeScope(request.Locator.Scope), cacheRequest, structureHandler);
                     break;
 
+                case "text-edit":
+                    origin = ResolveEventOrigin(automation, request, cacheRequest);
+                    textEditHandler = new TextEditEventHandler();
+                    var textEditAutomation = automation as IUIAutomation3
+                        ?? throw new InvalidOperationException("Text-edit events require UI Automation 3 or later.");
+                    foreach (var changeType in TextEditChangeTypes)
+                    {
+                        textEditAutomation.AddTextEditTextChangedEventHandler(
+                            origin,
+                            ParseTreeScope(request.Locator.Scope),
+                            changeType,
+                            cacheRequest,
+                            textEditHandler);
+                    }
+
+                    break;
+
                 default:
                     throw new ArgumentOutOfRangeException(nameof(request), request.EventKind, "Unsupported event kind.");
             }
@@ -500,6 +540,7 @@ public static class UiAutomationBootstrap
                 "automation" => automationHandler!.WaitHandle.WaitOne(timeoutMs),
                 "property" => propertyHandler!.WaitHandle.WaitOne(timeoutMs),
                 "structure" => structureHandler!.WaitHandle.WaitOne(timeoutMs),
+                "text-edit" => textEditHandler!.WaitHandle.WaitOne(timeoutMs),
                 _ => false
             };
 
@@ -509,6 +550,7 @@ public static class UiAutomationBootstrap
                 "automation" => automationHandler!.ToResult(automation, !signaled),
                 "property" => propertyHandler!.ToResult(automation, !signaled),
                 "structure" => structureHandler!.ToResult(automation, !signaled),
+                "text-edit" => textEditHandler!.ToResult(automation, !signaled),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.EventKind, "Unsupported event kind.")
             };
         }
@@ -534,10 +576,16 @@ public static class UiAutomationBootstrap
                 automation.RemoveStructureChangedEventHandler(origin, structureHandler);
             }
 
+            if (textEditHandler is not null && origin is not null && automation is IUIAutomation3 automation3)
+            {
+                automation3.RemoveTextEditTextChangedEventHandler(origin, textEditHandler);
+            }
+
             focusHandler?.Dispose();
             automationHandler?.Dispose();
             propertyHandler?.Dispose();
             structureHandler?.Dispose();
+            textEditHandler?.Dispose();
             FinalRelease(cacheRequest);
             FinalRelease(origin);
             FinalRelease(automation);
@@ -1801,6 +1849,335 @@ public static class UiAutomationBootstrap
         }
     }
 
+    private static readonly Dictionary<int, string> AnnotationTypeNames = new()
+    {
+        [60000] = "Unknown",
+        [60001] = "SpellingError",
+        [60002] = "GrammarError",
+        [60003] = "Comment",
+        [60004] = "FormulaError",
+        [60005] = "TrackChanges",
+        [60006] = "Header",
+        [60007] = "Footer",
+        [60008] = "Highlighted",
+        [60009] = "Endnote",
+        [60010] = "Footnote",
+        [60011] = "InsertionChange",
+        [60012] = "DeletionChange",
+        [60013] = "MoveChange",
+        [60014] = "FormatChange",
+        [60015] = "UnsyncedChange",
+        [60016] = "EditingLockedChange",
+        [60017] = "ExternalChange",
+        [60018] = "ConflictingChange",
+        [60019] = "Author",
+        [60020] = "AdvancedProofingIssue",
+        [60021] = "DataValidationError",
+        [60022] = "CircularReferenceError",
+        [60023] = "Mathematics",
+        [60024] = "Sensitive"
+    };
+
+    private const int UiaAnnotationTypesAttributeId = 40031;
+
+    /// <summary>
+    /// Upper bound on the number of format runs walked when collecting annotations.
+    /// Documents can be arbitrarily long and each step is a cross-process COM call, so
+    /// the walk is capped rather than allowed to run to completion.
+    /// </summary>
+    private const int AnnotationRunLimit = 400;
+
+    /// <summary>
+    /// UI Automation subscribes text-edit handlers per change type and offers no "any" value,
+    /// so a caller waiting for text edits is registered against every concrete type.
+    /// </summary>
+    private static readonly TextEditChangeType[] TextEditChangeTypes =
+    [
+        TextEditChangeType.TextEditChangeType_AutoCorrect,
+        TextEditChangeType.TextEditChangeType_Composition,
+        TextEditChangeType.TextEditChangeType_CompositionFinalized,
+        TextEditChangeType.TextEditChangeType_AutoComplete
+    ];
+
+    /// <summary>
+    /// Character offset of <paramref name="target"/>'s start within
+    /// <paramref name="documentRange"/>. UI Automation exposes no offset API, so the
+    /// distance is measured by cloning the document range, pulling its end back to the
+    /// target's start, and counting the resulting text.
+    /// </summary>
+    private static int ComputeOffset(IUIAutomationTextRange? documentRange, IUIAutomationTextRange? target)
+    {
+        if (documentRange is null || target is null)
+        {
+            return -1;
+        }
+
+        IUIAutomationTextRange? probe = null;
+        try
+        {
+            probe = documentRange.Clone();
+            probe.MoveEndpointByRange(
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                target,
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+            return probe.GetText(-1)?.Length ?? -1;
+        }
+        catch (Exception ex) when (ex is COMException or ArgumentException)
+        {
+            return -1;
+        }
+        finally
+        {
+            FinalRelease(probe);
+        }
+    }
+
+    private static UiAutomationTextCaretInfo? ReadCaret(IUIAutomationTextPattern2? pattern, IUIAutomationTextRange? documentRange)
+    {
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        IUIAutomationTextRange? caret = null;
+        IUIAutomationTextRange? line = null;
+        try
+        {
+            var isActive = 0;
+            caret = pattern.GetCaretRange(out isActive);
+            if (caret is null)
+            {
+                return null;
+            }
+
+            var offset = ComputeOffset(documentRange, caret);
+
+            var lineText = string.Empty;
+            try
+            {
+                line = caret.Clone();
+                line.ExpandToEnclosingUnit(TextUnit.TextUnit_Line);
+                lineText = line.GetText(-1) ?? string.Empty;
+            }
+            catch (Exception ex) when (ex is COMException or ArgumentException)
+            {
+                lineText = string.Empty;
+            }
+
+            return new UiAutomationTextCaretInfo
+            {
+                IsActive = isActive != 0,
+                Offset = offset,
+                LineText = lineText
+            };
+        }
+        catch (Exception ex) when (ex is COMException or ArgumentException)
+        {
+            return null;
+        }
+        finally
+        {
+            FinalRelease(line);
+            FinalRelease(caret);
+        }
+    }
+
+    /// <summary>
+    /// Collects annotated runs by walking the document one format unit at a time.
+    /// Annotations follow formatting boundaries in every provider that reports them, and
+    /// UI Automation offers no way to enumerate them directly.
+    /// </summary>
+    private static UiAutomationTextAnnotation[] ReadAnnotations(IUIAutomationTextRange? documentRange)
+    {
+        if (documentRange is null)
+        {
+            return [];
+        }
+
+        var annotations = new List<UiAutomationTextAnnotation>();
+        IUIAutomationTextRange? cursor = null;
+
+        try
+        {
+            cursor = documentRange.Clone();
+            cursor.MoveEndpointByRange(
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                documentRange,
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+
+            for (var step = 0; step < AnnotationRunLimit; step++)
+            {
+                cursor.ExpandToEnclosingUnit(TextUnit.TextUnit_Format);
+
+                if (cursor.CompareEndpoints(
+                        TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start,
+                        documentRange,
+                        TextPatternRangeEndpoint.TextPatternRangeEndpoint_End) >= 0)
+                {
+                    break;
+                }
+
+                var text = cursor.GetText(-1) ?? string.Empty;
+                foreach (var typeId in ReadAnnotationTypeIds(cursor))
+                {
+                    annotations.Add(new UiAutomationTextAnnotation
+                    {
+                        TypeId = typeId,
+                        TypeName = AnnotationTypeNames.TryGetValue(typeId, out var name)
+                            ? name
+                            : typeId.ToString(CultureInfo.InvariantCulture),
+                        StartOffset = ComputeOffset(documentRange, cursor),
+                        Length = text.Length,
+                        Text = text
+                    });
+                }
+
+                // Collapse to the end of this run so the next expansion picks up the next one.
+                var moved = cursor.MoveEndpointByUnit(
+                    TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start,
+                    TextUnit.TextUnit_Format,
+                    1);
+                if (moved == 0)
+                {
+                    break;
+                }
+
+                cursor.MoveEndpointByRange(
+                    TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                    cursor,
+                    TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+            }
+        }
+        catch (Exception ex) when (ex is COMException or ArgumentException)
+        {
+            // A provider that cannot walk format units simply reports no annotations.
+        }
+        finally
+        {
+            FinalRelease(cursor);
+        }
+
+        return [.. annotations];
+    }
+
+    private static int[] ReadAnnotationTypeIds(IUIAutomationTextRange range)
+    {
+        object? value;
+        try
+        {
+            value = range.GetAttributeValue(UiaAnnotationTypesAttributeId);
+        }
+        catch (Exception ex) when (ex is COMException or ArgumentException)
+        {
+            return [];
+        }
+
+        // Mixed or unsupported attributes come back as a sentinel object rather than an array.
+        if (value is not Array array)
+        {
+            return [];
+        }
+
+        var ids = new List<int>();
+        foreach (var entry in array)
+        {
+            if (entry is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                var id = Convert.ToInt32(entry, CultureInfo.InvariantCulture);
+
+                // AnnotationType_Unknown carries no information and shows up on plain runs.
+                if (id != 60000 && !ids.Contains(id))
+                {
+                    ids.Add(id);
+                }
+            }
+            catch (Exception ex) when (ex is InvalidCastException or FormatException or OverflowException)
+            {
+                // Ignore entries that are not annotation ids.
+            }
+        }
+
+        return [.. ids];
+    }
+
+    private static UiAutomationTextChildInfo? ReadTextChild(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationTextChildPattern>(element, UIA_PatternIds.UIA_TextChildPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        IUIAutomationElement? container = null;
+        IUIAutomationTextRange? range = null;
+        IUIAutomationTextPattern? containerText = null;
+        IUIAutomationTextRange? containerRange = null;
+
+        try
+        {
+            container = TryRead<IUIAutomationElement?>(() => pattern.TextContainer, null);
+            range = TryRead<IUIAutomationTextRange?>(() => pattern.TextRange, null);
+
+            var offset = -1;
+            if (container is not null && range is not null)
+            {
+                containerText = GetPattern<IUIAutomationTextPattern>(container, UIA_PatternIds.UIA_TextPatternId);
+                if (containerText is not null)
+                {
+                    containerRange = TryRead<IUIAutomationTextRange?>(() => containerText.DocumentRange, null);
+                    offset = ComputeOffset(containerRange, range);
+                }
+            }
+
+            return new UiAutomationTextChildInfo
+            {
+                Container = container is null ? null : ToElementReference(container),
+                RangeText = range is null ? string.Empty : TryRead(() => range.GetText(-1), string.Empty) ?? string.Empty,
+                StartOffset = offset
+            };
+        }
+        finally
+        {
+            FinalRelease(containerRange);
+            FinalRelease(containerText);
+            FinalRelease(range);
+            FinalRelease(container);
+            FinalRelease(pattern);
+        }
+    }
+
+    private static UiAutomationTextEditInfo? ReadTextEdit(IUIAutomationTextEditPattern? pattern)
+    {
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        IUIAutomationTextRange? composition = null;
+        IUIAutomationTextRange? conversion = null;
+        try
+        {
+            composition = TryRead<IUIAutomationTextRange?>(() => pattern.GetActiveComposition(), null);
+            conversion = TryRead<IUIAutomationTextRange?>(() => pattern.GetConversionTarget(), null);
+
+            return new UiAutomationTextEditInfo
+            {
+                ActiveComposition = composition is null ? string.Empty : TryRead(() => composition.GetText(-1), string.Empty) ?? string.Empty,
+                ConversionTarget = conversion is null ? string.Empty : TryRead(() => conversion.GetText(-1), string.Empty) ?? string.Empty
+            };
+        }
+        finally
+        {
+            FinalRelease(conversion);
+            FinalRelease(composition);
+        }
+    }
+
     private static UiAutomationVirtualizationInfo? ReadVirtualization(UiAutomationPatternInfo[] supportedPatterns)
     {
         var isItemContainer = false;
@@ -2458,9 +2835,58 @@ public static class UiAutomationBootstrap
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class PropertyChangedEventHandler : IUIAutomationPropertyChangedEventHandler, IDisposable
+    private sealed class TextEditEventHandler : IUIAutomationTextEditTextChangedEventHandler, IDisposable
     {
         private IUIAutomationElement? sender;
+
+        public AutoResetEvent WaitHandle { get; } = new(false);
+
+        public TextEditChangeType ChangeType { get; private set; }
+
+        public string[] EventStrings { get; private set; } = [];
+
+        public void HandleTextEditTextChangedEvent(IUIAutomationElement sender, TextEditChangeType textEditChangeType, string[] eventStrings)
+        {
+            if (this.sender is null)
+            {
+                this.sender = sender;
+                ChangeType = textEditChangeType;
+                EventStrings = eventStrings ?? [];
+                WaitHandle.Set();
+                return;
+            }
+
+            FinalRelease(sender);
+        }
+
+        public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
+        {
+            try
+            {
+                return new UiAutomationEventResult
+                {
+                    EventKind = "text-edit",
+                    TimedOut = timedOut,
+                    TextEditChangeType = (int)ChangeType,
+                    TextEditChangeTypeName = ChangeType.ToString(),
+                    EventStrings = EventStrings,
+                    SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
+                };
+            }
+            finally
+            {
+                FinalRelease(sender);
+                sender = null;
+            }
+        }
+
+        public void Dispose() => WaitHandle.Dispose();
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class PropertyChangedEventHandler : IUIAutomationPropertyChangedEventHandler, IDisposable
+    {        private IUIAutomationElement? sender;
 
         public AutoResetEvent WaitHandle { get; } = new(false);
 
