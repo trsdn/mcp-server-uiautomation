@@ -407,19 +407,19 @@ jobs:
         shell: pwsh
 
       - name: Download MCP server package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: mcp-server-nupkg
           path: nupkg
 
       - name: Download CLI package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cli-nupkg
           path: cli-nupkg
 
       - name: Download VSIX
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vscode-vsix
           path: vscode-vsix
@@ -532,7 +532,7 @@ jobs:
         run: echo "VERSION=${{ needs.version.outputs.version }}" >> $GITHUB_ENV
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
