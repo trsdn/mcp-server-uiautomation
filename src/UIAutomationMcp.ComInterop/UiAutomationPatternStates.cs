@@ -100,3 +100,64 @@ public sealed class UiAutomationDockPatternState
 
     public string DockPositionName { get; init; } = string.Empty;
 }
+
+/// <summary>
+/// Lightweight identity of an element referenced from pattern state.
+/// Pattern state uses references instead of full element info so that
+/// self-referencing relationships (a column header is its own column header)
+/// cannot recurse, and so header lists stay small.
+/// </summary>
+public sealed class UiAutomationElementReference
+{
+    public string Name { get; init; } = string.Empty;
+
+    public string ClassName { get; init; } = string.Empty;
+
+    public string AutomationId { get; init; } = string.Empty;
+
+    public int ControlType { get; init; }
+
+    public string LocalizedControlType { get; init; } = string.Empty;
+
+    public int[] RuntimeId { get; init; } = Array.Empty<int>();
+
+    public UiAutomationRect? BoundingRectangle { get; init; }
+}
+
+public sealed class UiAutomationGridPatternState
+{
+    public int RowCount { get; init; }
+
+    public int ColumnCount { get; init; }
+}
+
+public sealed class UiAutomationGridItemPatternState
+{
+    public int Row { get; init; }
+
+    public int Column { get; init; }
+
+    public int RowSpan { get; init; }
+
+    public int ColumnSpan { get; init; }
+
+    public UiAutomationElementReference? ContainingGrid { get; init; }
+}
+
+public sealed class UiAutomationTablePatternState
+{
+    public int RowOrColumnMajor { get; init; }
+
+    public string RowOrColumnMajorName { get; init; } = string.Empty;
+
+    public IReadOnlyList<UiAutomationElementReference> RowHeaders { get; init; } = Array.Empty<UiAutomationElementReference>();
+
+    public IReadOnlyList<UiAutomationElementReference> ColumnHeaders { get; init; } = Array.Empty<UiAutomationElementReference>();
+}
+
+public sealed class UiAutomationTableItemPatternState
+{
+    public IReadOnlyList<UiAutomationElementReference> RowHeaderItems { get; init; } = Array.Empty<UiAutomationElementReference>();
+
+    public IReadOnlyList<UiAutomationElementReference> ColumnHeaderItems { get; init; } = Array.Empty<UiAutomationElementReference>();
+}

@@ -84,4 +84,12 @@ public sealed class UiAutomationElementInfo
     public UiAutomationMultipleViewPatternState? MultipleViewPattern { get; init; }
 
     public UiAutomationDockPatternState? DockPattern { get; init; }
+
+    public UiAutomationGridPatternState? GridPattern { get; init; }
+
+    public UiAutomationGridItemPatternState? GridItemPattern { get; init; }
+
+    public UiAutomationTablePatternState? TablePattern { get; init; }
+
+    public UiAutomationTableItemPatternState? TableItemPattern { get; init; }
 }

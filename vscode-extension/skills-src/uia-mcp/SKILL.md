@@ -14,6 +14,7 @@ Best for:
 - inspecting elements with cache-enabled lookups
 - navigating parent, child, and sibling relationships
 - reading text and selection state
+- reading tabular controls as a cell matrix with row and column headers
 - waiting for focus, automation, property, or structure events
 - running supported actions such as focus, invoke, set-value, toggle, expand/collapse, window state changes, move/resize, scroll, range-value updates, view switching, and docking
 
@@ -24,5 +25,6 @@ Useful MCP workflows:
 - move through the UI tree with `uia_navigate`
 - read text with `uia_text`
 - read selection data with `uia_selection`
+- read a grid or table with `uia_table` instead of walking cells with `uia_descendants`
 - wait for the next event with `uia_wait_event`
 - execute actions with `uia_action`

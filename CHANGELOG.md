@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Grid, GridItem, Table, and TableItem pattern support: `gridPattern`,
+  `gridItemPattern`, `tablePattern`, and `tableItemPattern` on inspected elements.
+- `uiamcp table` / `uia_table`, which reads a tabular control as a rectangular cell
+  matrix with row and column headers instead of requiring callers to walk
+  descendants and reconstruct coordinates. Supports `--max-rows`/`--max-columns`
+  limits and reports whether the result was truncated.
 - MultipleView pattern support: `multipleViewPattern` on inspected elements (current
   view id, current view name, and all supported views as id/name pairs) plus a
   `set-view` action that accepts either a view id or a localized view name.
