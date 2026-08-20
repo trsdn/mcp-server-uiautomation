@@ -103,7 +103,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -129,7 +129,7 @@ jobs:
           -p:Version=${{ env.VERSION }}
 
       - name: Upload NuGet artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: cli-nupkg
           path: cli-nupkg/*.nupkg
@@ -145,7 +145,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -225,13 +225,13 @@ jobs:
         shell: pwsh
 
       - name: Upload NuGet artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mcp-server-nupkg
           path: nupkg/*.nupkg
 
       - name: Upload ZIP artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mcp-server-zip
           path: zip-out/*.zip
@@ -247,12 +247,12 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -298,7 +298,7 @@ jobs:
         shell: pwsh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: vscode-vsix
           path: vscode-extension/UIAutomationMcp-*.vsix
@@ -314,7 +314,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -329,7 +329,7 @@ jobs:
         shell: pwsh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mcpb-bundle
           path: mcpb/artifacts/uia-mcp-*.mcpb
@@ -357,7 +357,7 @@ jobs:
         shell: pwsh
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: agent-skills
           path: skills-out/*.zip
@@ -398,7 +398,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: ${{ env.DOTNET_VERSION }}
 
@@ -407,19 +407,19 @@ jobs:
         shell: pwsh
 
       - name: Download MCP server package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: mcp-server-nupkg
           path: nupkg
 
       - name: Download CLI package
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: cli-nupkg
           path: cli-nupkg
 
       - name: Download VSIX
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: vscode-vsix
           path: vscode-vsix
@@ -532,7 +532,7 @@ jobs:
         run: echo "VERSION=${{ needs.version.outputs.version }}" >> $GITHUB_ENV
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           path: artifacts
 
