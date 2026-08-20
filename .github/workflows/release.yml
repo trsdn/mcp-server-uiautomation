@@ -274,7 +274,7 @@ jobs:
       - name: Update extension version
         run: |
           cd vscode-extension
-          npm version "$env:VERSION" --no-git-tag-version
+          npm version "$env:VERSION" --no-git-tag-version --allow-same-version
         shell: pwsh
 
       - name: Install dependencies
