@@ -19,4 +19,15 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    ignore:
+      # Must stay pinned to the "engines.vscode" floor declared in
+      # vscode-extension/package.json. Raise both together, by hand.
+      - dependency-name: "@types/vscode"
+      # Must match the Node runtime shipped inside the supported VS Code
+      # version, not the newest Node release.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
+      # TypeScript majors need a matching typescript-eslint major.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
 
