@@ -74,3 +74,29 @@ public sealed class UiAutomationSelectionItemPatternState
 
     public UiAutomationElementInfo? SelectionContainer { get; init; }
 }
+
+/// <summary>
+/// Describes a single view offered by a control that supports the MultipleView pattern.
+/// </summary>
+public sealed class UiAutomationViewInfo
+{
+    public int Id { get; init; }
+
+    public string Name { get; init; } = string.Empty;
+}
+
+public sealed class UiAutomationMultipleViewPatternState
+{
+    public int CurrentView { get; init; }
+
+    public string CurrentViewName { get; init; } = string.Empty;
+
+    public IReadOnlyList<UiAutomationViewInfo> SupportedViews { get; init; } = Array.Empty<UiAutomationViewInfo>();
+}
+
+public sealed class UiAutomationDockPatternState
+{
+    public int DockPosition { get; init; }
+
+    public string DockPositionName { get; init; } = string.Empty;
+}

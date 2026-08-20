@@ -231,7 +231,9 @@ static void WriteHelp()
     Console.WriteLine("  navigate [locator flags] --direction <parent|first-child|last-child|next-sibling|previous-sibling|normalize> [--view raw|control|content]");
     Console.WriteLine("  text [locator flags]");
     Console.WriteLine("  selection [locator flags]");
-    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|scroll|scroll-percent|set-range-value> [values] [locator flags]");
+    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|scroll|scroll-percent|set-range-value|set-view|dock> [values] [locator flags]");
+    Console.WriteLine("    set-view <view-id|view-name>   switches a MultipleView control (see multipleViewPattern.supportedViews)");
+    Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
     Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [locator flags]");
     Console.WriteLine();
     Console.WriteLine("Locator flags:");

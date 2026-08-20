@@ -30,7 +30,7 @@
 - selection-state reads
 - one-shot event waits for focus, automation, property-changed, and structure-changed events
 - supported-pattern discovery
-- pattern state projection for value, range value, toggle, expand/collapse, window, scroll, and selection item
+- pattern state projection for value, range value, toggle, expand/collapse, window, scroll, selection item, multiple view, and dock
 
 ### Service layer
 - `UiAutomationService.ProbeDesktop()`
@@ -66,7 +66,7 @@
 - opt into build-cache requests
 - read text and selection information
 - wait for one-shot UIA events
-- execute focus, invoke, value, selection, window, transform, scroll, and range-value actions
+- execute focus, invoke, value, selection, window, transform, scroll, range-value, view-switch, and dock actions
 
 ### Validation
 - `UIAutomationMcp.Smoke`

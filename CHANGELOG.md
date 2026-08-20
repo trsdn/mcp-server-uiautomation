@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- MultipleView pattern support: `multipleViewPattern` on inspected elements (current
+  view id, current view name, and all supported views as id/name pairs) plus a
+  `set-view` action that accepts either a view id or a localized view name.
+- Dock pattern support: `dockPattern` on inspected elements (dock position and its
+  name) plus a `dock` action accepting `top`, `left`, `bottom`, `right`, `fill`, and
+  `none`.
+- Pattern coverage table in `docs/UIAUTOMATION-COM-REFERENCE.md` recording, per
+  pattern, whether it is detect-only, readable, or actionable.
+
 ## [1.0.0] - 2026-08-20
 
 ### Added

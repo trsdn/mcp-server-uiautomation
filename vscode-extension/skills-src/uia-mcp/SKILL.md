@@ -15,7 +15,7 @@ Best for:
 - navigating parent, child, and sibling relationships
 - reading text and selection state
 - waiting for focus, automation, property, or structure events
-- running supported actions such as focus, invoke, set-value, toggle, expand/collapse, window state changes, move/resize, scroll, and range-value updates
+- running supported actions such as focus, invoke, set-value, toggle, expand/collapse, window state changes, move/resize, scroll, range-value updates, view switching, and docking
 
 Useful MCP workflows:
 
