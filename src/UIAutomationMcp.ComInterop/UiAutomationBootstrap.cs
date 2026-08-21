@@ -1412,6 +1412,8 @@ public static class UiAutomationBootstrap
             TablePattern = ReadTablePattern(element),
             TableItemPattern = ReadTableItemPattern(element),
             Virtualization = ReadVirtualization(supportedPatterns),
+            DragPattern = ReadDragPattern(element),
+            DropTargetPattern = ReadDropTargetPattern(element),
             LegacyAccessiblePattern = legacy,
             NameSource = nameSource,
             LocalizedControlTypeSource = localizedControlTypeSource
@@ -1650,6 +1652,52 @@ public static class UiAutomationBootstrap
     private static string ReadViewName(IUIAutomationMultipleViewPattern pattern, int viewId) =>
         TryRead(() => pattern.GetViewName(viewId), string.Empty) ?? string.Empty;
 
+    private static UiAutomationDragPatternState? ReadDragPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationDragPattern>(element, UIA_PatternIds.UIA_DragPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationDragPatternState
+            {
+                IsGrabbed = pattern.CurrentIsGrabbed != 0,
+                DropEffect = pattern.CurrentDropEffect ?? string.Empty,
+                DropEffects = pattern.CurrentDropEffects ?? [],
+                GrabbedItems = ReadElementReferenceArray(() => pattern.GetCurrentGrabbedItems())
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static UiAutomationDropTargetPatternState? ReadDropTargetPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationDropTargetPattern>(element, UIA_PatternIds.UIA_DropTargetPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationDropTargetPatternState
+            {
+                DropTargetEffect = pattern.CurrentDropTargetEffect ?? string.Empty,
+                DropTargetEffects = pattern.CurrentDropTargetEffects ?? []
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
     private static UiAutomationDockPatternState? ReadDockPattern(IUIAutomationElement element)
     {
         var pattern = GetPattern<IUIAutomationDockPattern>(element, UIA_PatternIds.UIA_DockPatternId);
@@ -1878,8 +1926,55 @@ public static class UiAutomationBootstrap
         [60024] = "Sensitive"
     };
 
-    private const int UiaAnnotationTypesAttributeId = 40031;
 
+    /// <summary>
+    /// UI Automation event ids resolved to their programmatic names, so an observed
+    /// event is self-describing instead of a bare number.
+    /// </summary>
+    private static readonly Dictionary<int, string> UiaEventNames = new()
+    {
+        [UIA_EventIds.UIA_ToolTipOpenedEventId] = "ToolTipOpened",
+        [UIA_EventIds.UIA_ToolTipClosedEventId] = "ToolTipClosed",
+        [UIA_EventIds.UIA_StructureChangedEventId] = "StructureChanged",
+        [UIA_EventIds.UIA_MenuOpenedEventId] = "MenuOpened",
+        [UIA_EventIds.UIA_AutomationPropertyChangedEventId] = "AutomationPropertyChanged",
+        [UIA_EventIds.UIA_AutomationFocusChangedEventId] = "AutomationFocusChanged",
+        [UIA_EventIds.UIA_AsyncContentLoadedEventId] = "AsyncContentLoaded",
+        [UIA_EventIds.UIA_MenuClosedEventId] = "MenuClosed",
+        [UIA_EventIds.UIA_LayoutInvalidatedEventId] = "LayoutInvalidated",
+        [UIA_EventIds.UIA_Invoke_InvokedEventId] = "Invoke_Invoked",
+        [UIA_EventIds.UIA_SelectionItem_ElementAddedToSelectionEventId] = "SelectionItem_ElementAddedToSelection",
+        [UIA_EventIds.UIA_SelectionItem_ElementRemovedFromSelectionEventId] = "SelectionItem_ElementRemovedFromSelection",
+        [UIA_EventIds.UIA_SelectionItem_ElementSelectedEventId] = "SelectionItem_ElementSelected",
+        [UIA_EventIds.UIA_Selection_InvalidatedEventId] = "Selection_Invalidated",
+        [UIA_EventIds.UIA_Text_TextSelectionChangedEventId] = "Text_TextSelectionChanged",
+        [UIA_EventIds.UIA_Text_TextChangedEventId] = "Text_TextChanged",
+        [UIA_EventIds.UIA_Window_WindowOpenedEventId] = "Window_WindowOpened",
+        [UIA_EventIds.UIA_Window_WindowClosedEventId] = "Window_WindowClosed",
+        [UIA_EventIds.UIA_MenuModeStartEventId] = "MenuModeStart",
+        [UIA_EventIds.UIA_MenuModeEndEventId] = "MenuModeEnd",
+        [UIA_EventIds.UIA_InputReachedTargetEventId] = "InputReachedTarget",
+        [UIA_EventIds.UIA_InputReachedOtherElementEventId] = "InputReachedOtherElement",
+        [UIA_EventIds.UIA_InputDiscardedEventId] = "InputDiscarded",
+        [UIA_EventIds.UIA_SystemAlertEventId] = "SystemAlert",
+        [UIA_EventIds.UIA_LiveRegionChangedEventId] = "LiveRegionChanged",
+        [UIA_EventIds.UIA_HostedFragmentRootsInvalidatedEventId] = "HostedFragmentRootsInvalidated",
+        [UIA_EventIds.UIA_Drag_DragStartEventId] = "Drag_DragStart",
+        [UIA_EventIds.UIA_Drag_DragCancelEventId] = "Drag_DragCancel",
+        [UIA_EventIds.UIA_Drag_DragCompleteEventId] = "Drag_DragComplete",
+        [UIA_EventIds.UIA_DropTarget_DragEnterEventId] = "DropTarget_DragEnter",
+        [UIA_EventIds.UIA_DropTarget_DragLeaveEventId] = "DropTarget_DragLeave",
+        [UIA_EventIds.UIA_DropTarget_DroppedEventId] = "DropTarget_Dropped",
+        [UIA_EventIds.UIA_TextEdit_TextChangedEventId] = "TextEdit_TextChanged",
+        [UIA_EventIds.UIA_TextEdit_ConversionTargetChangedEventId] = "TextEdit_ConversionTargetChanged",
+        [UIA_EventIds.UIA_ChangesEventId] = "Changes",
+        [UIA_EventIds.UIA_NotificationEventId] = "Notification",
+        [UIA_EventIds.UIA_ActiveTextPositionChangedEventId] = "ActiveTextPositionChanged"
+    };
+    private static string UiaEventName(int eventId) =>
+        UiaEventNames.TryGetValue(eventId, out var name) ? name : eventId.ToString(CultureInfo.InvariantCulture);
+
+    private const int UiaAnnotationTypesAttributeId = 40031;
     /// <summary>
     /// Upper bound on the number of format runs walked when collecting annotations.
     /// Documents can be arbitrarily long and each step is a cross-process COM call, so
@@ -2820,6 +2915,7 @@ public static class UiAutomationBootstrap
                     EventKind = "automation",
                     TimedOut = timedOut,
                     EventId = EventId,
+                    EventName = EventId is null ? null : UiaEventName(EventId.Value),
                     SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
                 };
             }
@@ -2886,7 +2982,8 @@ public static class UiAutomationBootstrap
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
     private sealed class PropertyChangedEventHandler : IUIAutomationPropertyChangedEventHandler, IDisposable
-    {        private IUIAutomationElement? sender;
+    {
+        private IUIAutomationElement? sender;
 
         public AutoResetEvent WaitHandle { get; } = new(false);
 

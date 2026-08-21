@@ -7,6 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- Drag and DropTarget pattern reads. Elements report `dragPattern` (`isGrabbed`,
+  `dropEffect`, `dropEffects`, `grabbedItems`) and `dropTargetPattern`
+  (`dropTargetEffect`, `dropTargetEffects`), so an in-progress drag can be observed:
+  which element is grabbed and what a drop would do. Automation event results now also
+  carry a resolved `eventName`, which makes the drag lifecycle events (`Drag_DragStart`
+  20026, `Drag_DragCancel` 20027, `Drag_DragComplete` 20028, `DropTarget_DragEnter`
+  20029, `DropTarget_DragLeave` 20030, `DropTarget_Dropped` 20031) usable through the
+  existing `automation` event kind. No `drag` verb is provided: UI Automation offers no
+  method to start a drag, and synthesizing mouse input is explicitly out of scope for
+  this tool.
 - TextPattern2, TextChild, and TextEdit support. `text` now additionally reports
   `caret` (offset plus the text of the caret's line), `annotations` (annotated format
   runs such as spelling and grammar errors, comments, and highlights, each with type id,

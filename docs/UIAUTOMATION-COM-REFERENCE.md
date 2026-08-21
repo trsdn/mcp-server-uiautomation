@@ -87,7 +87,8 @@ authoritative status per pattern:
 | ItemContainer, VirtualizedItem | readable + actionable | `virtualization`, virtualized-item lookup fallback, `action realize` |
 | TextChild | readable | `text` command: `textChild` (container + offset for inline elements) |
 | TextEdit | readable + observable | `text` command: `textEdit`, `wait-event --event-kind text-edit` |
-| Drag, DropTarget | detect-only | tracked in the pattern-coverage epic |
+| Drag | readable | `dragPattern` (`isGrabbed`, `dropEffect`, `grabbedItems`) |
+| DropTarget | readable | `dropTargetPattern` (`dropTargetEffect`, `dropTargetEffects`) |
 | Annotation, Styles, Spreadsheet, SpreadsheetItem, CustomNavigation, ObjectModel, SynchronizedInput, Transform2, ScrollItem | detect-only | no consumer planned |
 
 ### MultipleView
@@ -277,6 +278,57 @@ UI Automation subscribes text-edit handlers *per change type* and offers no "any
 value, so `wait-event` registers the same handler against all four concrete types.
 Passing `TextEditChangeType_None` — the obvious-looking choice — silently subscribes to
 nothing and always times out.
+
+### Drag and DropTarget
+
+These two patterns are **observational, and deliberately stay that way.** UI Automation
+lets a provider report that a drag is happening and what a drop would do; it offers no
+method to *start* one. There is no `IUIAutomationDragPattern.BeginDrag`, and there never
+was.
+
+That leaves one alternative — synthesizing mouse input with `SendInput` — and this
+project does not do that. Synthetic input steals focus, depends on the pointer actually
+being over the right pixels, races with anything else on the desktop, and fails silently
+under UIPI when the target runs elevated. Every other verb here drives a provider
+directly; a `drag` verb that moved the physical mouse would be a different kind of tool
+wearing the same name. If a caller genuinely needs pixel-level dragging, that belongs in
+a separate input-injection tool, not behind a UI Automation verb.
+
+What *is* exposed is the read half, which is useful on its own:
+
+```json
+"dragPattern": {
+  "isGrabbed": false,
+  "dropEffect": "",
+  "dropEffects": [],
+  "grabbedItems": [ { "name": "Explorer", "automationId": "Appid: Microsoft.Windows.Explorer", "...": "..." } ]
+},
+"dropTargetPattern": { "dropTargetEffect": "", "dropTargetEffects": [] }
+```
+
+`dropEffect` and `dropTargetEffect` are free-form provider strings ("move", "copy",
+"link", or whatever the app chose) — UI Automation does not constrain them, so do not
+switch on them without checking the specific app first. `grabbedItems` matters for
+multi-item drags; a provider dragging only itself typically reports just that element.
+
+**Drag progress is observable through ordinary automation events.** There is no separate
+event kind: use `wait-event --event-kind automation` with one of
+
+| Event id | Name |
+| --- | --- |
+| 20026 | `Drag_DragStart` |
+| 20027 | `Drag_DragCancel` |
+| 20028 | `Drag_DragComplete` |
+| 20029 | `DropTarget_DragEnter` |
+| 20030 | `DropTarget_DragLeave` |
+| 20031 | `DropTarget_Dropped` |
+
+Automation event results now also carry `eventName`, so an observed event identifies
+itself instead of arriving as a bare number.
+
+Verified against the Windows 11 taskbar, whose task-list buttons expose the Drag pattern
+with populated `grabbedItems`, and against File Explorer's list view, which exposes
+DropTarget.
 
 ### Element references in pattern state
 

@@ -220,3 +220,40 @@ public sealed class UiAutomationLegacyAccessiblePatternState
     /// </summary>
     public string DefaultAction { get; init; } = string.Empty;
 }
+
+/// <summary>
+/// Drag state for an element that can be dragged. UI Automation reports drag state; it
+/// offers no method to start a drag, so this pattern is observational only.
+/// </summary>
+public sealed class UiAutomationDragPatternState
+{
+    /// <summary>True while the element is currently being dragged.</summary>
+    public bool IsGrabbed { get; init; }
+
+    /// <summary>
+    /// Provider-defined string describing what dropping right now would do, for example
+    /// "move" or "copy". Free-form by design - UI Automation does not constrain it.
+    /// </summary>
+    public string DropEffect { get; init; } = string.Empty;
+
+    /// <summary>All effects the drag source can offer, when the provider enumerates them.</summary>
+    public IReadOnlyList<string> DropEffects { get; init; } = Array.Empty<string>();
+
+    /// <summary>
+    /// The elements being dragged. Populated for multi-item drags; a provider dragging
+    /// only the element itself normally leaves this empty.
+    /// </summary>
+    public IReadOnlyList<UiAutomationElementReference> GrabbedItems { get; init; } = Array.Empty<UiAutomationElementReference>();
+}
+
+/// <summary>
+/// Drop state for an element that can receive a drag.
+/// </summary>
+public sealed class UiAutomationDropTargetPatternState
+{
+    /// <summary>Provider-defined string describing what dropping on this target would do.</summary>
+    public string DropTargetEffect { get; init; } = string.Empty;
+
+    /// <summary>All effects this target can offer, when the provider enumerates them.</summary>
+    public IReadOnlyList<string> DropTargetEffects { get; init; } = Array.Empty<string>();
+}

@@ -49,3 +49,11 @@ not text controls — a hyperlink or an image returns a `textChild` block naming
 document that contains it and the element's offset within it, which is how you locate an
 inline element inside a page. Use `uia_wait_event` with `eventKind: "text-edit"` to see
 when an app rewrites typed input; the substituted text arrives in `eventStrings`.
+
+Drag and drop are read-only in UI Automation: a provider reports drag state but exposes
+no way to start a drag, and this tool deliberately does not synthesize mouse input to
+fake one. Elements report `dragPattern` (`isGrabbed`, `dropEffect`, `grabbedItems`) and
+`dropTargetPattern`. To watch a drag that is already happening, use `uia_wait_event` with
+`eventKind: "automation"` and event id 20026 (drag start), 20027 (cancel), 20028
+(complete), 20029 (drag enter), 20030 (drag leave) or 20031 (dropped); results include a
+readable `eventName`.
