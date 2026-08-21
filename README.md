@@ -50,6 +50,7 @@ It also keeps the historical reference to Excel MCP as a related sibling project
 - waits for focus, automation, property-changed, and structure-changed events
 - performs common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, range-value updates, view switching, docking, realizing virtualized items, and MSAA default actions
 - finds items that a virtualizing list has not materialized yet by asking the container directly, so a search for the 250th row of a 300-row list works without scrolling
+- reports drag and drop state (`isGrabbed`, drop effects, grabbed items) so an in-progress drag can be observed, and resolves automation events to readable names such as `Drag_DragStart`
 - reads MSAA data through the LegacyIAccessible bridge, so Win32, MFC, and installer windows that expose no native UI Automation provider still report usable names, roles, states, and a runnable default action
 - reads tabular controls as a cell matrix with row and column headers
 - exposes the same expanded surface through CLI and MCP

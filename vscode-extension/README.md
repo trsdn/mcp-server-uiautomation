@@ -29,6 +29,7 @@ The current UI Automation bundle provides:
 - one-shot UIA event waiting
 - common actions such as focus, invoke, set-value, toggle, expand/collapse, selection, window state changes, move/resize, scroll, range-value updates, view switching, docking, realizing virtualized items, and MSAA default actions
 - automatic lookup of items a virtualizing list has not materialized yet
+- drag and drop state reads, and named automation events
 - tabular reads that return a Grid/Table control as a cell matrix with headers
 - bundled CLI and MCP access to the same aligned surface
 

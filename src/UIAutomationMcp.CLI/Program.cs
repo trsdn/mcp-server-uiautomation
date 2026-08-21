@@ -245,6 +245,8 @@ static void WriteHelp()
     Console.WriteLine("    default-action                 runs the MSAA default action (LegacyIAccessible) for controls with no modern actionable pattern");
     Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure|text-edit> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [locator flags]");
     Console.WriteLine("    text-edit                      observes auto-correct, IME composition, and auto-complete changes (TextEdit pattern)");
+    Console.WriteLine("    drag and drop are automation events: --event-kind automation --event-id 20026 (drag start), 20027 (cancel),");
+    Console.WriteLine("      20028 (complete), 20029 (drag enter), 20030 (drag leave), 20031 (dropped)");
     Console.WriteLine();
     Console.WriteLine("Locator flags:");
     Console.WriteLine("  --root");

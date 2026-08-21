@@ -11,6 +11,9 @@ public sealed class UiAutomationEventResult
 
     public int? EventId { get; init; }
 
+    /// <summary>Programmatic name of <see cref="EventId"/>, for example <c>Drag_DragStart</c>.</summary>
+    public string? EventName { get; init; }
+
     public int? PropertyId { get; init; }
 
     public int? StructureChangeType { get; init; }

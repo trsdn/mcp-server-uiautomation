@@ -95,6 +95,10 @@ public sealed class UiAutomationElementInfo
 
     public UiAutomationVirtualizationInfo? Virtualization { get; init; }
 
+    public UiAutomationDragPatternState? DragPattern { get; init; }
+
+    public UiAutomationDropTargetPatternState? DropTargetPattern { get; init; }
+
     public UiAutomationLegacyAccessiblePatternState? LegacyAccessiblePattern { get; init; }
 
     /// <summary>
