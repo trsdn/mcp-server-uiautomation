@@ -1,0 +1,12 @@
+# The root .gitignore excludes every [Bb]in/ directory for the .NET build output.
+# npm/bin holds the package launcher, which is source, so re-include it. The
+# directory has to be un-ignored before the file inside it can be.
+!bin/
+!bin/uia-mcp.js
+
+# Build output produced by Build-NpmPackage.ps1.
+server/
+staging/
+artifacts/
+LICENSE
+*.tgz

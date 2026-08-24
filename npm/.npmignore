@@ -1,0 +1,9 @@
+# This file must exist even though "files" in package.json already whitelists
+# what ships. Without an .npmignore, npm falls back to .gitignore -- which
+# excludes server/ and LICENSE, because those are build output. The result
+# would be a tarball that installs fine and then fails at run time with a
+# missing executable. Keep this file.
+Build-NpmPackage.ps1
+staging/
+artifacts/
+*.tgz

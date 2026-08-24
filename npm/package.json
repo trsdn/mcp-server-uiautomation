@@ -1,0 +1,54 @@
+{
+  "name": "uia-mcp",
+  "version": "1.0.0",
+  "mcpName": "io.github.trsdn/mcp-server-uiautomation",
+  "description": "Windows UI Automation MCP server - inspect and drive the Windows desktop through elements, trees, text, control patterns and events. Windows only.",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "ui-automation",
+    "uia",
+    "windows",
+    "desktop",
+    "automation",
+    "accessibility",
+    "control-pattern",
+    "win32"
+  ],
+  "homepage": "https://github.com/trsdn/mcp-server-uiautomation#readme",
+  "bugs": {
+    "url": "https://github.com/trsdn/mcp-server-uiautomation/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trsdn/mcp-server-uiautomation.git",
+    "directory": "npm"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Torsten Mahr",
+    "url": "https://github.com/trsdn"
+  },
+  "bin": {
+    "uia-mcp": "bin/uia-mcp.js"
+  },
+  "files": [
+    "bin/uia-mcp.js",
+    "server/uia-mcp-server.exe",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File ./Build-NpmPackage.ps1"
+  }
+}

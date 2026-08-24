@@ -16,6 +16,12 @@ wait for automation events — all over the Model Context Protocol.
 dotnet tool install --global UIAutomationMcp.McpServer
 ```
 
+Or run it without installing anything, with the .NET runtime bundled:
+
+```powershell
+npx -y uia-mcp
+```
+
 ## Configure
 
 ### VS Code / GitHub Copilot
@@ -38,6 +44,19 @@ dotnet tool install --global UIAutomationMcp.McpServer
   "mcpServers": {
     "uia-mcp": {
       "command": "uiamcp-server"
+    }
+  }
+}
+```
+
+### npx (no install)
+
+```json
+{
+  "mcpServers": {
+    "uia-mcp": {
+      "command": "npx",
+      "args": ["-y", "uia-mcp"]
     }
   }
 }
