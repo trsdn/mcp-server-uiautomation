@@ -5,6 +5,7 @@ name: Release All Components
 # - CLI (NuGet .NET tool)
 # - VS Code Extension (VSIX + Marketplace)
 # - MCPB (Claude Desktop bundle)
+# - npm package (npx uia-mcp)
 # - Agent Skills (ZIP package)
 #
 # All components share the same version.
@@ -14,6 +15,7 @@ name: Release All Components
 #
 # Required GitHub secrets:
 # - NUGET_USER:  NuGet.org username (profile name, NOT the email address)
+# - NPM_TOKEN:   npm automation token with publish rights for `uia-mcp`
 # - VSCE_TOKEN:  VS Code Marketplace personal access token
 
 on:
@@ -335,7 +337,43 @@ jobs:
           path: mcpb/artifacts/uia-mcp-*.mcpb
 
   # ---------------------------------------------------------------------------
-  # Job 5: Agent skills package
+  # Job 5: npm package (MCP server only)
+  # ---------------------------------------------------------------------------
+  build-npm:
+    name: npm Package
+    needs: [version]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Set version
+        run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
+        shell: pwsh
+
+      - name: Build npm package
+        run: |
+          cd npm
+          .\Build-NpmPackage.ps1 -Version $env:VERSION -Pack
+        shell: pwsh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-tarball
+          path: npm/artifacts/*.tgz
+
+  # ---------------------------------------------------------------------------
+  # Job 6: Agent skills package
   # ---------------------------------------------------------------------------
   build-agent-skills:
     name: Agent Skills
@@ -363,11 +401,11 @@ jobs:
           path: skills-out/*.zip
 
   # ---------------------------------------------------------------------------
-  # Job 6: Create the git tag once every artifact built
+  # Job 7: Create the git tag once every artifact built
   # ---------------------------------------------------------------------------
   create-tag:
     name: Create Git Tag
-    needs: [version, build-cli, build-mcp-server, build-vscode, build-mcpb, build-agent-skills]
+    needs: [version, build-cli, build-mcp-server, build-vscode, build-mcpb, build-npm, build-agent-skills]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -385,7 +423,7 @@ jobs:
           git push origin "$TAG"
 
   # ---------------------------------------------------------------------------
-  # Job 7: Publish to NuGet.org and the VS Code Marketplace
+  # Job 8: Publish to NuGet.org, npm, and the VS Code Marketplace
   # ---------------------------------------------------------------------------
   publish:
     name: Publish to Registries
@@ -424,6 +462,18 @@ jobs:
           name: vscode-vsix
           path: vscode-vsix
 
+      - name: Download npm tarball
+        uses: actions/download-artifact@v8
+        with:
+          name: npm-tarball
+          path: npm-tarball
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          registry-url: https://registry.npmjs.org
+
       - name: NuGet login (OIDC)
         uses: NuGet/login@v1
         id: nuget-login
@@ -441,6 +491,16 @@ jobs:
             --source https://api.nuget.org/v3/index.json --skip-duplicate
         shell: pwsh
 
+      - name: Publish to npm
+        run: |
+          $version = $env:VERSION
+          $tarball = "npm-tarball/uia-mcp-$version.tgz"
+          if (-not (Test-Path $tarball)) { throw "Missing npm tarball: $tarball" }
+          npm publish $tarball --access public --provenance
+        shell: pwsh
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Publish to VS Code Marketplace
         uses: HaaLeo/publish-vscode-extension@v2
         with:
@@ -450,7 +510,7 @@ jobs:
         continue-on-error: true
 
   # ---------------------------------------------------------------------------
-  # Job 8: Publish to the MCP registry (needs the NuGet package to be live)
+  # Job 9: Publish to the MCP registry (needs the NuGet package to be live)
   # ---------------------------------------------------------------------------
   publish-mcp-registry:
     name: MCP Registry
@@ -516,7 +576,7 @@ jobs:
         continue-on-error: true
 
   # ---------------------------------------------------------------------------
-  # Job 9: Create the GitHub release
+  # Job 10: Create the GitHub release
   # ---------------------------------------------------------------------------
   create-release:
     name: Create GitHub Release
@@ -576,6 +636,17 @@ jobs:
           **Claude Desktop (MCPB)**
           - Download `uia-mcp-${{ env.VERSION }}.mcpb` and double-click to install
 
+          **npm**
+          ```json
+          {
+            "mcpServers": {
+              "uia-mcp": { "command": "npx", "args": ["-y", "uia-mcp"] }
+            }
+          }
+          ```
+          - Self-contained: no .NET runtime required
+          - MCP server only; use the NuGet tool or the VSIX if you also want the CLI
+
           **NuGet (.NET tools)**
           ```powershell
           # MCP server (for AI assistants)
@@ -610,6 +681,7 @@ jobs:
                    artifacts/cli-nupkg/*.nupkg \
                    artifacts/vscode-vsix/*.vsix \
                    artifacts/mcpb-bundle/*.mcpb \
+                   artifacts/npm-tarball/*.tgz \
                    artifacts/agent-skills/*.zip; do
             [ -f "$f" ] && ARTIFACTS="$ARTIFACTS $f"
           done

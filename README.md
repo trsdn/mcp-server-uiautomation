@@ -22,6 +22,17 @@ Self-contained; bundles the MCP server, the CLI, and both agent skills.
 **Claude Desktop** — download `uia-mcp-<version>.mcpb` from the latest release and
 double-click it.
 
+**npm** — [`uia-mcp`](https://www.npmjs.com/package/uia-mcp) ships the MCP server with
+the .NET runtime bundled, so it needs no prerequisites:
+
+```json
+{
+  "mcpServers": {
+    "uia-mcp": { "command": "npx", "args": ["-y", "uia-mcp"] }
+  }
+}
+```
+
 **NuGet .NET tools**
 
 ```powershell

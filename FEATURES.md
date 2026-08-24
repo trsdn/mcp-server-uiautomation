@@ -58,6 +58,7 @@
 - CLI: `uiamcp`
 - MCP server: `UIAutomationMcp.McpServer`
 - VS Code extension: `uia-mcp`
+- npm package: `uia-mcp` (MCP server only, run with `npx uia-mcp`)
 
 ### CLI and MCP coverage
 - inspect elements with generic locators (`--root`, `--focused`, `--handle`, `--x/--y`, property filters)

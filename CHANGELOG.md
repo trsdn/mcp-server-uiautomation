@@ -14,6 +14,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   configured.
 
 ### Added
+- npm package [`uia-mcp`](https://www.npmjs.com/package/uia-mcp), so the MCP server can be
+  run as `npx -y uia-mcp` with no prerequisites — the .NET runtime is bundled. The package
+  ships the server only; the CLI stays on NuGet and in the VSIX rather than doubling the
+  download. It is built and published by the release workflow (`NPM_TOKEN` secret, npm
+  provenance) and is listed alongside the NuGet package in the MCP registry metadata.
 - Drag and DropTarget pattern reads. Elements report `dragPattern` (`isGrabbed`,
   `dropEffect`, `dropEffects`, `grabbedItems`) and `dropTargetPattern`
   (`dropTargetEffect`, `dropTargetEffects`), so an in-progress drag can be observed:
