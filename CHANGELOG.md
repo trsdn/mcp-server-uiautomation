@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- The VS Code extension is now published on the Marketplace as
+  [`trsdn.uia-mcp`](https://marketplace.visualstudio.com/items?itemName=trsdn.uia-mcp)
+  and can be installed with `code --install-extension trsdn.uia-mcp`. Installing the VSIX
+  from a GitHub release still works and remains the fallback when `VSCE_TOKEN` is not
+  configured.
+
 ### Added
 - Drag and DropTarget pattern reads. Elements report `dragPattern` (`isGrabbed`,
   `dropEffect`, `dropEffects`, `grabbedItems`) and `dropTargetPattern`

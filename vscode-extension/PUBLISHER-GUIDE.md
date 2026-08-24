@@ -9,9 +9,14 @@ Use this guide when you are ready to publish the `uia-mcp` VS Code extension.
 - review `README.md` and `CHANGELOG.md`
 
 ## Marketplace setup
-1. Create or reuse a VS Code Marketplace publisher.
-2. Store the marketplace token as `VSCE_TOKEN` in repository secrets.
-3. Publish with your chosen workflow or `vsce publish` flow.
+The publisher `trsdn` exists and the extension is live as
+[`trsdn.uia-mcp`](https://marketplace.visualstudio.com/items?itemName=trsdn.uia-mcp).
+
+1. Store the marketplace token as `VSCE_TOKEN` in repository secrets to publish
+   automatically from `.github/workflows/release.yml`.
+2. Without that secret, upload the VSIX by hand at
+   https://marketplace.visualstudio.com/manage/publishers/trsdn — see
+   `MARKETPLACE-PUBLISHING.md` for the exact steps.
 
 ## Notes
 Keep publisher metadata, extension id, and repository links aligned with `uia-mcp`.

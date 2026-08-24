@@ -1,6 +1,28 @@
 # VS Code Marketplace Publishing Setup
 
-This document explains how to set up automated publishing to the VS Code Marketplace.
+The extension is published as
+[`trsdn.uia-mcp`](https://marketplace.visualstudio.com/items?itemName=trsdn.uia-mcp).
+Version 1.0.0 was published manually through the Marketplace web UI; the steps below cover
+both the automated path and that manual fallback.
+
+## Manual publishing (no PAT required)
+
+Use this when `VSCE_TOKEN` is not configured, or the token has expired:
+
+1. Download `UIAutomationMcp-<version>.vsix` from the
+   [latest release](https://github.com/trsdn/mcp-server-uiautomation/releases/latest).
+2. Open https://marketplace.visualstudio.com/manage/publishers/trsdn and sign in.
+3. For a first publish choose **New extension → Visual Studio Code**; for an update use
+   **More Actions → Update** on the existing extension.
+4. Select the VSIX, then click **Upload**.
+5. Wait for the status to move from `Verifying` to `Verified` (usually a few minutes).
+
+The extension id, publisher, and version all come from the VSIX itself, so the upload
+cannot drift from `vscode-extension/package.json`.
+
+## Automated publishing
+
+This section explains how to set up automated publishing to the VS Code Marketplace.
 
 ## Required GitHub Secret
 
