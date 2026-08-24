@@ -15,17 +15,12 @@ on:
       - 'Directory.Packages.props'
       - '.github/workflows/codeql.yml'
       - '.github/codeql/**'
+  # No paths filter here on purpose: "Analyze Code with CodeQL (csharp)" is a
+  # required status check on main. A filtered job never reports on a PR that
+  # misses its paths, and the PR then stays blocked forever waiting for a check
+  # that will never arrive.
   pull_request:
     branches: [ "main" ]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - '**.csproj'
-      - '**.sln'
-      - 'Directory.Build.props'
-      - 'Directory.Packages.props'
-      - '.github/workflows/codeql.yml'
-      - '.github/codeql/**'
   schedule:
     # Run CodeQL analysis every Monday at 10:00 AM UTC
     - cron: '0 10 * * 1'

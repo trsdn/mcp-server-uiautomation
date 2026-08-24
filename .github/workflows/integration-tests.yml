@@ -4,15 +4,11 @@ permissions:
   contents: read
 
 on:
+  # No paths filter here on purpose: smoke is a required status check on main.
+  # A filtered job never reports on a PR that misses its paths, and the PR then
+  # stays blocked forever waiting for a check that will never arrive.
   pull_request:
     branches: [ main ]
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - 'global.json'
-      - 'Directory.Build.props'
-      - 'Directory.Packages.props'
-      - '.github/workflows/integration-tests.yml'
   push:
     branches: [ main, develop ]
     paths:
