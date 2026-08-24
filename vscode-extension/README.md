@@ -1,6 +1,7 @@
 # UI Automation MCP - Windows Desktop Automation for Copilot
 
 [![GitHub](https://img.shields.io/badge/GitHub-trsdn%2Fmcp--server--uiautomation-blue)](https://github.com/trsdn/mcp-server-uiautomation)
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/trsdn.uia-mcp?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=trsdn.uia-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 

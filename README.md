@@ -1,5 +1,6 @@
 # UIAutomationMcp
 
+[![VS Code Marketplace](https://img.shields.io/visual-studio-marketplace/v/trsdn.uia-mcp?label=VS%20Code%20Marketplace)](https://marketplace.visualstudio.com/items?itemName=trsdn.uia-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![.NET](https://img.shields.io/badge/.NET-9-blue.svg)](https://dotnet.microsoft.com/download/dotnet/9.0)
 [![Platform](https://img.shields.io/badge/platform-Windows-lightgrey.svg)](https://learn.microsoft.com/windows/win32/winauto/entry-uiauto-win32)
@@ -11,7 +12,9 @@ Windows UI Automation toolkit with three aligned entry points:
 
 ## Install
 
-**VS Code extension** (recommended) — search for "UI Automation MCP" in the Marketplace, or
+**VS Code extension** (recommended) — install
+[`trsdn.uia-mcp`](https://marketplace.visualstudio.com/items?itemName=trsdn.uia-mcp)
+from the Marketplace (`code --install-extension trsdn.uia-mcp`), or
 install the `UIAutomationMcp-<version>.vsix` from the
 [latest release](https://github.com/trsdn/mcp-server-uiautomation/releases/latest).
 Self-contained; bundles the MCP server, the CLI, and both agent skills.
