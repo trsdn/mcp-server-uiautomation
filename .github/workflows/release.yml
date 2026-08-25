@@ -519,13 +519,33 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
+      # This step used to carry `continue-on-error: true`, which reported success
+      # in the API while the log said "Input required and not supplied: pat".
+      # Releases therefore skipped the Marketplace without anyone noticing.
+      # Gate on the secret instead: a missing token is an explicit skip, and a
+      # real publish failure now fails the job. Secrets are not readable from a
+      # step-level `if`, so the probe step below converts one into an output.
+      - name: Check Marketplace token
+        id: vsce
+        run: |
+          if ($env:VSCE_TOKEN) {
+            "configured=true" >> $env:GITHUB_OUTPUT
+          }
+          else {
+            "configured=false" >> $env:GITHUB_OUTPUT
+            Write-Warning "VSCE_TOKEN is not set - skipping the VS Code Marketplace publish. Upload the VSIX by hand, see vscode-extension/MARKETPLACE-PUBLISHING.md."
+          }
+        shell: pwsh
+        env:
+          VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
+
       - name: Publish to VS Code Marketplace
+        if: steps.vsce.outputs.configured == 'true'
         uses: HaaLeo/publish-vscode-extension@v2
         with:
           pat: ${{ secrets.VSCE_TOKEN }}
           registryUrl: https://marketplace.visualstudio.com
           extensionFile: vscode-vsix/UIAutomationMcp-${{ env.VERSION }}.vsix
-        continue-on-error: true
 
   # ---------------------------------------------------------------------------
   # Job 9: Publish to the MCP registry (needs the NuGet package to be live)
@@ -732,7 +752,14 @@ jobs:
             --base main \
             --head "$BRANCH" \
             --title "chore: update CHANGELOG.md for v${VERSION} release" \
-            --body "Automated post-release changelog update: renames \`[Unreleased]\` to \`[$VERSION] - $DATE\` and adds a fresh \`[Unreleased]\` section."
+            --body "Automated post-release changelog update: renames \`[Unreleased]\` to \`[$VERSION] - $DATE\` and adds a fresh \`[Unreleased]\` section.
+
+          > **Merging this PR needs an admin override.** It is pushed and opened by
+          > \`GITHUB_TOKEN\`, and GitHub deliberately does not start workflow runs for
+          > such pushes to avoid recursion. The required status checks therefore never
+          > report and the PR stays \`BLOCKED\` forever. Merge it with
+          > \`gh pr merge <n> --squash --admin\`. The change is a mechanical CHANGELOG
+          > heading rename, so there is nothing for CI to verify."
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
