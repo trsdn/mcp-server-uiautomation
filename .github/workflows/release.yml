@@ -496,7 +496,25 @@ jobs:
           $version = $env:VERSION
           $tarball = "npm-tarball/uia-mcp-$version.tgz"
           if (-not (Test-Path $tarball)) { throw "Missing npm tarball: $tarball" }
-          npm publish $tarball --access public --provenance
+
+          # npm treats a bare relative path containing a slash as a GitHub
+          # shorthand spec, so "npm-tarball/uia-mcp-1.0.1.tgz" is resolved as
+          # the repository npm-tarball/uia-mcp-1.0.1.tgz and fails with an
+          # opaque "unknown git error". An absolute path is unambiguous.
+          $tarballPath = (Resolve-Path $tarball).Path
+
+          # npm has no equivalent of nuget's --skip-duplicate, and republishing
+          # an existing version is a hard error. Without this guard a failure in
+          # any later publish step leaves the release unrepeatable, because the
+          # version job refuses to reuse an existing tag.
+          $published = npm view "uia-mcp@$version" version 2>$null
+          if ($LASTEXITCODE -eq 0 -and $published) {
+            Write-Host "uia-mcp@$version is already on npm - skipping"
+          }
+          else {
+            npm publish $tarballPath --access public --provenance
+            if ($LASTEXITCODE -ne 0) { throw "npm publish failed with exit code $LASTEXITCODE" }
+          }
         shell: pwsh
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
