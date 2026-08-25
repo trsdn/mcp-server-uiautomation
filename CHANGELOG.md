@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Changed
+- New project mark. The extension and MCPB icons were still the Excel MCP template
+  artwork — a green spreadsheet grid captioned "Excel MCP" — which was live on the
+  Marketplace listing and actively misleading about what the extension does. Replaced
+  with a window frame under an inspector highlight, the Windows accessibility "Inspect"
+  metaphor that matches what this server actually does. `vscode-extension/icon.svg` is
+  the source of truth; `vscode-extension/Build-Icons.ps1` regenerates both rasters from
+  it and verifies their PNG dimensions. The mark carries no text, because at the 42–90 px
+  the Marketplace and extension list render it, a wordmark is unreadable and the name is
+  already shown beside the icon.
+- The extension's `Data Science` Marketplace category, another Excel MCP leftover, is now
+  `Testing`.
 - The VS Code extension is now published on the Marketplace as
   [`trsdn.uia-mcp`](https://marketplace.visualstudio.com/items?itemName=trsdn.uia-mcp)
   and can be installed with `code --install-extension trsdn.uia-mcp`. Installing the VSIX

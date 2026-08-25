@@ -1,53 +1,65 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!--
+  UI Automation MCP mark.
+
+  A window frame with an inspector highlight around one child element and a
+  pointer inside it - the Windows accessibility "Inspect" metaphor, which is
+  literally what this server does: walk the UI Automation tree and report the
+  element under scrutiny.
+
+  Deliberately carries no text. The Marketplace and the VS Code extension list
+  render this at roughly 42-90px, where any wordmark turns to mush, and the
+  extension name is already displayed next to the icon.
+
+  This SVG is the source of truth. Regenerate the raster icons with:
+      pwsh vscode-extension/Build-Icons.ps1
+-->
 <svg width="256" height="256" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background gradient - Excel green -->
   <defs>
     <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#217346;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#0e5c35;stop-opacity:1" />
+      <stop offset="0%" style="stop-color:#1D3E7A;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0B1B36;stop-opacity:1" />
     </linearGradient>
   </defs>
-  
-  <!-- Rounded background -->
-  <rect width="256" height="256" fill="url(#bg)" rx="32"/>
-  
-  <!-- Excel Table (4 columns x 5 rows) -->
-  <g transform="translate(40, 40)">
-    <!-- Cell dimensions: 44x28 pixels, 4 columns, 5 rows -->
-    
-    <!-- Header row (solid white) -->
-    <rect x="0" y="0" width="44" height="28" fill="#ffffff" opacity="1.0" stroke="#217346" stroke-width="1"/>
-    <rect x="44" y="0" width="44" height="28" fill="#ffffff" opacity="1.0" stroke="#217346" stroke-width="1"/>
-    <rect x="88" y="0" width="44" height="28" fill="#ffffff" opacity="1.0" stroke="#217346" stroke-width="1"/>
-    <rect x="132" y="0" width="44" height="28" fill="#ffffff" opacity="1.0" stroke="#217346" stroke-width="1"/>
-    
-    <!-- Data row 1 (banded - darker) -->
-    <rect x="0" y="28" width="44" height="28" fill="#ffffff" opacity="0.7" stroke="#217346" stroke-width="1"/>
-    <rect x="44" y="28" width="44" height="28" fill="#ffffff" opacity="0.7" stroke="#217346" stroke-width="1"/>
-    <rect x="88" y="28" width="44" height="28" fill="#ffffff" opacity="0.7" stroke="#217346" stroke-width="1"/>
-    <rect x="132" y="28" width="44" height="28" fill="#ffffff" opacity="0.7" stroke="#217346" stroke-width="1"/>
-    
-    <!-- Data row 2 (banded - lighter) -->
-    <rect x="0" y="56" width="44" height="28" fill="#ffffff" opacity="0.5" stroke="#217346" stroke-width="1"/>
-    <rect x="44" y="56" width="44" height="28" fill="#ffffff" opacity="0.5" stroke="#217346" stroke-width="1"/>
-    <rect x="88" y="56" width="44" height="28" fill="#ffffff" opacity="0.5" stroke="#217346" stroke-width="1"/>
-    <rect x="132" y="56" width="44" height="28" fill="#ffffff" opacity="0.5" stroke="#217346" stroke-width="1"/>
-    
-    <!-- Data row 3 (banded - darker) -->
-    <rect x="0" y="84" width="44" height="28" fill="#ffffff" opacity="0.7" stroke="#217346" stroke-width="1"/>
-    <rect x="44" y="84" width="44" height="28" fill="#ffffff" opacity="0.7" stroke="#217346" stroke-width="1"/>
-    <rect x="88" y="84" width="44" height="28" fill="#ffffff" opacity="0.7" stroke="#217346" stroke-width="1"/>
-    <rect x="132" y="84" width="44" height="28" fill="#ffffff" opacity="0.7" stroke="#217346" stroke-width="1"/>
-    
-    <!-- Data row 4 (banded - lighter) -->
-    <rect x="0" y="112" width="44" height="28" fill="#ffffff" opacity="0.5" stroke="#217346" stroke-width="1"/>
-    <rect x="44" y="112" width="44" height="28" fill="#ffffff" opacity="0.5" stroke="#217346" stroke-width="1"/>
-    <rect x="88" y="112" width="44" height="28" fill="#ffffff" opacity="0.5" stroke="#217346" stroke-width="1"/>
-    <rect x="132" y="112" width="44" height="28" fill="#ffffff" opacity="0.5" stroke="#217346" stroke-width="1"/>
+
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+
+  <!-- Application window -->
+  <g stroke="#CFE3FF" fill="none" stroke-width="9" stroke-linejoin="round">
+    <rect x="38" y="46" width="180" height="152" rx="16" fill="#FFFFFF" fill-opacity="0.06"/>
+    <line x1="38" y1="86" x2="218" y2="86"/>
   </g>
-  
-  <!-- "Excel MCP" text at bottom -->
-  <text x="128" y="220" font-family="Segoe UI, Arial, sans-serif" 
-        font-size="24" font-weight="700" fill="#ffffff" 
-        text-anchor="middle" opacity="0.95">Excel MCP</text>
+
+  <!-- Title bar dots -->
+  <g fill="#CFE3FF" fill-opacity="0.9">
+    <circle cx="60" cy="66" r="6"/>
+    <circle cx="80" cy="66" r="6"/>
+    <circle cx="100" cy="66" r="6"/>
+  </g>
+
+  <!-- Sibling elements in the tree -->
+  <g fill="#9FC6FF">
+    <rect x="58" y="106" width="58" height="18" rx="9" fill-opacity="0.5"/>
+    <rect x="58" y="138" width="42" height="18" rx="9" fill-opacity="0.32"/>
+    <rect x="58" y="170" width="58" height="18" rx="9" fill-opacity="0.32"/>
+  </g>
+
+  <!-- The inspected element -->
+  <rect x="136" y="104" width="60" height="60" rx="8" fill="#9FC6FF" fill-opacity="0.22"/>
+
+  <!-- Inspector highlight -->
+  <rect x="136" y="104" width="60" height="60" rx="8"
+        fill="none" stroke="#FFC53D" stroke-width="9"/>
+  <g fill="#FFC53D">
+    <rect x="129" y="97" width="15" height="15" rx="3"/>
+    <rect x="188" y="97" width="15" height="15" rx="3"/>
+    <rect x="129" y="156" width="15" height="15" rx="3"/>
+    <rect x="188" y="156" width="15" height="15" rx="3"/>
+  </g>
+
+  <!-- Pointer -->
+  <g transform="translate(151,116) scale(1.45)">
+    <polygon points="0,0 0,25 6.2,18.8 10.4,28.4 15.6,26.1 11.4,16.8 20,15.8"
+             fill="#FFFFFF" stroke="#0B1B36" stroke-width="2.2" stroke-linejoin="round"/>
+  </g>
 </svg>
