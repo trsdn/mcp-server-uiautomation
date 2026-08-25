@@ -28,8 +28,10 @@ MARKETPLACE-PUBLISHING.md
 PUBLISHER-GUIDE.md
 skills-src/**
 
-# SVG icon (PNG is used for marketplace)
+# Icon sources. The PNG is what package.json references and what the Marketplace
+# renders; the SVG and the script that rasterises it are build-time only.
 icon.svg
+Build-Icons.ps1
 
 # Debug symbols and XML docs are not needed in the shipped extension
 bin/**/*.pdb
