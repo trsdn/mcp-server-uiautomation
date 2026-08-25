@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.0.2] - 2026-08-25
+
 > **Note on 1.0.1** — the 1.0.1 release run aborted partway through. The NuGet packages
 > `UIAutomationMcp.McpServer` and `UIAutomationMcp.CLI` were published at 1.0.1, but npm,
 > the VS Code Marketplace, the MCP registry and the GitHub release were not. Everything
