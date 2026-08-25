@@ -2,8 +2,9 @@
 
 The extension is published as
 [`trsdn.uia-mcp`](https://marketplace.visualstudio.com/items?itemName=trsdn.uia-mcp).
-Version 1.0.0 was published manually through the Marketplace web UI; the steps below cover
-both the automated path and that manual fallback.
+Versions 1.0.0 and 1.0.2 were published manually through the Marketplace web UI, because
+`VSCE_TOKEN` is not configured; the steps below cover both the automated path and that
+manual fallback.
 
 ## Manual publishing (no PAT required)
 
@@ -81,7 +82,10 @@ When you run the release workflow (via `workflow_dispatch`):
 
 ### Publishing is Optional
 
-- If the token is not configured, marketplace publishing will be skipped (uses `continue-on-error: true`)
+- If the token is not configured, the `Publish to VS Code Marketplace` step is skipped
+  outright and the job logs a warning naming this document. It is *not* run with
+  `continue-on-error`, so a publish failure with a token present fails the release job
+  instead of being reported as a success.
 - The GitHub release will still be created with the VSIX file
 - Users can always install from the VSIX file manually
 

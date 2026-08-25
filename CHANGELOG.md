@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- The release workflow no longer hides a failed Marketplace publish. The
+  `Publish to VS Code Marketplace` step carried `continue-on-error: true`, so when
+  `VSCE_TOKEN` was unset it logged `Input required and not supplied: pat` while still
+  reporting `conclusion: success` — the 1.0.2 release looked fully green but never reached
+  the Marketplace, and the VSIX had to be uploaded by hand. The step is now gated on the
+  secret: a missing token is an explicit skip with a warning, and a genuine publish failure
+  fails the job.
+
+### Changed
+- The automated post-release changelog pull request now says in its own body that it needs
+  an admin merge. It is opened by `GITHUB_TOKEN`, and GitHub does not start workflow runs
+  for such pushes, so its required status checks never report and it would otherwise sit
+  blocked indefinitely.
+
 ## [1.0.2] - 2026-08-25
 
 > **Note on 1.0.1** — the 1.0.1 release run aborted partway through. The NuGet packages
