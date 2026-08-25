@@ -13,6 +13,14 @@ name: Release All Components
 # The workflow calculates the next version from the latest git tag, builds every artifact,
 # creates the git tag, publishes to the registries, and finally creates the GitHub release.
 #
+# Resuming a partial release:
+# Publishing is not atomic - a failure in one registry leaves the others already published.
+# Every publish and tagging step is therefore idempotent, and a run can be repeated with
+# `resume: true` plus `custom_version: <the version that failed>`. The tag and the GitHub
+# release are reused, and only the registries that are still missing are filled in.
+# Without this a mid-publish failure burned the version number for good (it cost 1.0.1,
+# which reached NuGet only).
+#
 # Required GitHub secrets:
 # - NUGET_USER:  NuGet.org username (profile name, NOT the email address)
 # - NPM_TOKEN:   npm automation token with publish rights for `uia-mcp`
@@ -34,6 +42,11 @@ on:
         description: 'Custom version (e.g. 1.2.3, overrides version_bump)'
         required: false
         type: string
+      resume:
+        description: 'Resume a partially published release: reuse the existing tag and GitHub release instead of failing. Requires custom_version.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -60,6 +73,14 @@ jobs:
       - name: Calculate version
         id: calculate_version
         run: |
+          # Resuming has to name the version explicitly: a bump would read the
+          # latest tag - which is the tag of the very release being resumed -
+          # and pick the next number instead of the one that failed.
+          if [ "${{ inputs.resume }}" = "true" ] && [ -z "${{ inputs.custom_version }}" ]; then
+            echo "::error::resume=true requires custom_version (the version of the release you are resuming)"
+            exit 1
+          fi
+
           if [ -n "${{ inputs.custom_version }}" ]; then
             VERSION="${{ inputs.custom_version }}"
             echo "Using custom version: ${VERSION}"
@@ -85,8 +106,21 @@ jobs:
           fi
 
           TAG="v${VERSION}"
+
+          # An existing tag used to be a hard stop, which made a partially
+          # published release impossible to finish: the tag is created before
+          # the publish job, so any registry failure left the version tagged and
+          # therefore permanently unusable. Allow an explicit resume instead.
+          # `create-tag` re-checks the tag itself rather than reading an output
+          # here, so it stays correct even if the tag appears between the jobs.
           if git rev-parse "$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists"
+            if [ "${{ inputs.resume }}" != "true" ]; then
+              echo "::error::Tag $TAG already exists. To finish a partially published release, re-run this workflow with resume=true and custom_version=$VERSION."
+              exit 1
+            fi
+            echo "Resuming release $TAG - the tag already exists and will be reused"
+          elif [ "${{ inputs.resume }}" = "true" ]; then
+            echo "::error::resume=true but tag $TAG does not exist - nothing to resume. Run a normal release instead."
             exit 1
           fi
 
@@ -416,9 +450,19 @@ jobs:
 
       - name: Create and push tag
         run: |
+          TAG="${{ needs.version.outputs.tag }}"
+
+          # Idempotent, so a resumed release does not stop here. Both `git tag`
+          # and `git push` fail on an existing tag, and this job runs before the
+          # publish job - that combination is what made a release that failed
+          # halfway through publishing impossible to repeat.
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists - reusing it"
+            exit 0
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          TAG="${{ needs.version.outputs.tag }}"
           git tag -a "$TAG" -m "Release $TAG"
           git push origin "$TAG"
 
@@ -525,22 +569,51 @@ jobs:
       # Gate on the secret instead: a missing token is an explicit skip, and a
       # real publish failure now fails the job. Secrets are not readable from a
       # step-level `if`, so the probe step below converts one into an output.
-      - name: Check Marketplace token
+      - name: Check Marketplace preconditions
         id: vsce
         run: |
-          if ($env:VSCE_TOKEN) {
-            "configured=true" >> $env:GITHUB_OUTPUT
-          }
-          else {
-            "configured=false" >> $env:GITHUB_OUTPUT
+          if (-not $env:VSCE_TOKEN) {
+            "publish=false" >> $env:GITHUB_OUTPUT
             Write-Warning "VSCE_TOKEN is not set - skipping the VS Code Marketplace publish. Upload the VSIX by hand, see vscode-extension/MARKETPLACE-PUBLISHING.md."
+            exit 0
           }
+
+          # Republishing an existing version is a hard error, so without this
+          # guard a resumed release would fail here whenever the Marketplace was
+          # one of the registries that already succeeded. The gallery is served
+          # from several nodes that lag behind each other, so ask more than once
+          # and treat any hit as published.
+          $version = $env:VERSION
+          $body = @{
+            filters = @(@{ criteria = @(@{ filterType = 7; value = "trsdn.uia-mcp" }) })
+            flags   = 3
+          } | ConvertTo-Json -Depth 6
+
+          for ($i = 1; $i -le 3; $i++) {
+            try {
+              $response = Invoke-RestMethod -Uri "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery" `
+                -Method Post -Body $body -ContentType "application/json" `
+                -Headers @{ Accept = "application/json;api-version=3.0-preview.1" }
+              $versions = $response.results[0].extensions[0].versions.version
+              if ($versions -contains $version) {
+                Write-Host "trsdn.uia-mcp@$version is already on the Marketplace - skipping"
+                "publish=false" >> $env:GITHUB_OUTPUT
+                exit 0
+              }
+            }
+            catch {
+              Write-Host "Gallery query attempt $i failed: $($_.Exception.Message)"
+            }
+            if ($i -lt 3) { Start-Sleep -Seconds 10 }
+          }
+
+          "publish=true" >> $env:GITHUB_OUTPUT
         shell: pwsh
         env:
           VSCE_TOKEN: ${{ secrets.VSCE_TOKEN }}
 
       - name: Publish to VS Code Marketplace
-        if: steps.vsce.outputs.configured == 'true'
+        if: steps.vsce.outputs.publish == 'true'
         uses: HaaLeo/publish-vscode-extension@v2
         with:
           pat: ${{ secrets.VSCE_TOKEN }}
@@ -640,6 +713,14 @@ jobs:
           CHANGELOG_FILE="CHANGELOG.md"
           if [ -f "$CHANGELOG_FILE" ]; then
             CONTENT=$(awk '/^## \[Unreleased\]/{flag=1; next} /^## \[/{flag=0} flag' "$CHANGELOG_FILE" | sed '1{/^$/d}')
+
+            # On a resumed release the post-release changelog PR may already have
+            # rolled [Unreleased] into a version section, which would leave the
+            # release notes empty. Read that section instead.
+            if [ -z "$(echo "$CONTENT" | tr -d '[:space:]')" ]; then
+              CONTENT=$(awk -v v="## [$VERSION]" 'index($0, v) == 1 {flag=1; next} /^## \[/{flag=0} flag' "$CHANGELOG_FILE" | sed '1{/^$/d}')
+            fi
+
             if [ -n "$CONTENT" ]; then
               echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
               echo "$CONTENT" >> $GITHUB_OUTPUT
@@ -725,9 +806,22 @@ jobs:
           done
 
           echo "Creating release with artifacts:$ARTIFACTS"
-          gh release create "$TAG" $ARTIFACTS \
-            --title "UIAutomationMcp $VERSION" \
-            --notes-file release_notes.md
+
+          # Idempotent for resumed releases: `gh release create` fails when the
+          # release already exists, so update it in place instead.
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Release $TAG already exists - updating notes and re-uploading assets"
+            gh release edit "$TAG" \
+              --title "UIAutomationMcp $VERSION" \
+              --notes-file release_notes.md
+            if [ -n "$ARTIFACTS" ]; then
+              gh release upload "$TAG" $ARTIFACTS --clobber
+            fi
+          else
+            gh release create "$TAG" $ARTIFACTS \
+              --title "UIAutomationMcp $VERSION" \
+              --notes-file release_notes.md
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -736,6 +830,17 @@ jobs:
           VERSION=${{ env.VERSION }}
           DATE=$(date +%Y-%m-%d)
           BRANCH="chore/changelog-v${VERSION}"
+
+          # Idempotent for resumed releases: the branch and PR may already exist
+          # from the run that failed, and the roll may already be on main.
+          if grep -q "^## \[$VERSION\]" CHANGELOG.md; then
+            echo "CHANGELOG already has a [$VERSION] section - nothing to roll"
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
+            echo "Branch $BRANCH already exists - the changelog PR was opened by an earlier run"
+            exit 0
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
