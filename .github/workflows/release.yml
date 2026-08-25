@@ -17,9 +17,10 @@ name: Release All Components
 # Publishing is not atomic - a failure in one registry leaves the others already published.
 # Every publish and tagging step is therefore idempotent, and a run can be repeated with
 # `resume: true` plus `custom_version: <the version that failed>`. The tag and the GitHub
-# release are reused, and only the registries that are still missing are filled in.
-# Without this a mid-publish failure burned the version number for good (it cost 1.0.1,
-# which reached NuGet only).
+# release are reused, the build jobs check out the tag rather than the default branch so the
+# artifacts match what was released, and only the registries that are still missing are
+# filled in. Without this a mid-publish failure burned the version number for good (it cost
+# 1.0.1, which reached NuGet only).
 #
 # Required GitHub secrets:
 # - NUGET_USER:  NuGet.org username (profile name, NOT the email address)
@@ -137,6 +138,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A resumed release must build from the tag, not from the default
+          # branch, which would otherwise ship newer code under an already
+          # published version number. Empty means the triggering ref.
+          ref: ${{ inputs.resume && needs.version.outputs.tag || '' }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -179,6 +185,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A resumed release must build from the tag, not from the default
+          # branch, which would otherwise ship newer code under an already
+          # published version number. Empty means the triggering ref.
+          ref: ${{ inputs.resume && needs.version.outputs.tag || '' }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -281,6 +292,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A resumed release must build from the tag, not from the default
+          # branch, which would otherwise ship newer code under an already
+          # published version number. Empty means the triggering ref.
+          ref: ${{ inputs.resume && needs.version.outputs.tag || '' }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -348,6 +364,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A resumed release must build from the tag, not from the default
+          # branch, which would otherwise ship newer code under an already
+          # published version number. Empty means the triggering ref.
+          ref: ${{ inputs.resume && needs.version.outputs.tag || '' }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -379,6 +400,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A resumed release must build from the tag, not from the default
+          # branch, which would otherwise ship newer code under an already
+          # published version number. Empty means the triggering ref.
+          ref: ${{ inputs.resume && needs.version.outputs.tag || '' }}
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v6
@@ -415,6 +441,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A resumed release must build from the tag, not from the default
+          # branch, which would otherwise ship newer code under an already
+          # published version number. Empty means the triggering ref.
+          ref: ${{ inputs.resume && needs.version.outputs.tag || '' }}
 
       - name: Set version
         run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV
@@ -632,6 +663,11 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          # A resumed release must build from the tag, not from the default
+          # branch, which would otherwise ship newer code under an already
+          # published version number. Empty means the triggering ref.
+          ref: ${{ inputs.resume && needs.version.outputs.tag || '' }}
 
       - name: Set version
         run: echo "VERSION=${{ needs.version.outputs.version }}" >> $env:GITHUB_ENV

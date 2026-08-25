@@ -58,9 +58,11 @@ version number. Re-run the workflow with:
 - `custom_version: <the version that failed>` — required, because a bump would read the tag
   of the release being resumed and move past it
 
-The tag and the GitHub release are reused, and each publish step skips what is already live:
-NuGet uses `--skip-duplicate`, npm and the Marketplace are checked against their registries
-first. Only the missing registries are filled in.
+The tag and the GitHub release are reused, the build jobs check out the tag instead of the
+default branch so the artifacts match the released commit rather than whatever has landed
+since, and each publish step skips what is already live: NuGet uses `--skip-duplicate`, npm
+and the Marketplace are checked against their registries first. Only the missing registries
+are filled in.
 
 ### Secrets
 
