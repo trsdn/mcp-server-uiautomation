@@ -12,8 +12,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   in any single registry left the version tagged — the `version` job then refused that tag
   and the run could never be repeated. This is what stranded 1.0.1 as a NuGet-only release.
   Re-run the workflow with `resume: true` and `custom_version: <failed version>`: the tag and
-  the GitHub release are reused, and every publish step now skips what is already live
-  (NuGet via `--skip-duplicate`, npm and the Marketplace via a registry query). The changelog
+  the GitHub release are reused, the build jobs check out the tag so the artifacts match the
+  released commit, and every publish step now skips what is already live (NuGet via
+  `--skip-duplicate`, npm and the Marketplace via a registry query). The changelog
   pull request and the release notes handle the resumed case too. 1.0.1 is deliberately left
   as it is rather than backfilled, since publishing it after 1.0.2 would put an older build
   on top.
