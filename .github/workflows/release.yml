@@ -707,18 +707,20 @@ jobs:
         with:
           path: artifacts
 
-      - name: Extract changelog from [Unreleased]
+      - name: Extract changelog for the release notes
         id: changelog
         run: |
           CHANGELOG_FILE="CHANGELOG.md"
           if [ -f "$CHANGELOG_FILE" ]; then
-            CONTENT=$(awk '/^## \[Unreleased\]/{flag=1; next} /^## \[/{flag=0} flag' "$CHANGELOG_FILE" | sed '1{/^$/d}')
+            # A [VERSION] section wins over [Unreleased]: once the post-release
+            # changelog pull request has rolled the entries, that section is the
+            # authoritative record for this version. Reading [Unreleased] then
+            # would pick up whatever has landed since, which on a resumed release
+            # would overwrite the notes with entries for a later version.
+            CONTENT=$(awk -v v="## [$VERSION]" 'index($0, v) == 1 {flag=1; next} /^## \[/{flag=0} flag' "$CHANGELOG_FILE" | sed '1{/^$/d}')
 
-            # On a resumed release the post-release changelog PR may already have
-            # rolled [Unreleased] into a version section, which would leave the
-            # release notes empty. Read that section instead.
             if [ -z "$(echo "$CONTENT" | tr -d '[:space:]')" ]; then
-              CONTENT=$(awk -v v="## [$VERSION]" 'index($0, v) == 1 {flag=1; next} /^## \[/{flag=0} flag' "$CHANGELOG_FILE" | sed '1{/^$/d}')
+              CONTENT=$(awk '/^## \[Unreleased\]/{flag=1; next} /^## \[/{flag=0} flag' "$CHANGELOG_FILE" | sed '1{/^$/d}')
             fi
 
             if [ -n "$CONTENT" ]; then
