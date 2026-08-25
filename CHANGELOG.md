@@ -7,6 +7,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- A partially published release can now be finished instead of burning the version number.
+  Publishing is not atomic, and the git tag is created before the publish job, so a failure
+  in any single registry left the version tagged — the `version` job then refused that tag
+  and the run could never be repeated. This is what stranded 1.0.1 as a NuGet-only release.
+  Re-run the workflow with `resume: true` and `custom_version: <failed version>`: the tag and
+  the GitHub release are reused, and every publish step now skips what is already live
+  (NuGet via `--skip-duplicate`, npm and the Marketplace via a registry query). The changelog
+  pull request and the release notes handle the resumed case too. 1.0.1 is deliberately left
+  as it is rather than backfilled, since publishing it after 1.0.2 would put an older build
+  on top.
 - The release workflow no longer hides a failed Marketplace publish. The
   `Publish to VS Code Marketplace` step carried `continue-on-error: true`, so when
   `VSCE_TOKEN` was unset it logged `Input required and not supplied: pat` while still
@@ -20,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   an admin merge. It is opened by `GITHUB_TOKEN`, and GitHub does not start workflow runs
   for such pushes, so its required status checks never report and it would otherwise sit
   blocked indefinitely.
+- `docs/DEVELOPMENT.md` now documents how releases are cut, how to resume a partial one, and
+  which secrets the pipeline needs.
 
 ## [1.0.2] - 2026-08-25
 
