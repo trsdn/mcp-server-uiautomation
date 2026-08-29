@@ -90,7 +90,7 @@
     "@vscode/vsce": "^3.9.2",
     "eslint": "^10.8.1",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.67.0"
+    "typescript-eslint": "^8.68.0"
   },
   "overrides": {
     "undici": "7.29.0"
