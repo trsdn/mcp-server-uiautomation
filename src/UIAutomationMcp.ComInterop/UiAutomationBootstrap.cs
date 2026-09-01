@@ -814,9 +814,9 @@ public static class UiAutomationBootstrap
                 "dock" => PerformDock(element!, request.StringValue),
                 "realize" => PerformRealize(element!),
                 "scroll-into-view" => PerformScrollIntoView(element!),
-                "select-text" => PerformSelectText(element!, request.StringValue, request.IntValue, request.NumberValue),
-                "move-caret" => PerformMoveCaret(element!, request.StringValue, request.IntValue),
-                "scroll-text-into-view" => PerformScrollTextIntoView(element!, request.StringValue, request.IntValue, request.NumberValue),
+                "select-text" => InvokeTextRangeOperation(() => PerformSelectText(element!, request.StringValue, request.IntValue, request.NumberValue)),
+                "move-caret" => InvokeTextRangeOperation(() => PerformMoveCaret(element!, request.StringValue, request.IntValue)),
+                "scroll-text-into-view" => InvokeTextRangeOperation(() => PerformScrollTextIntoView(element!, request.StringValue, request.IntValue, request.NumberValue)),
                 "default-action" => PerformDefaultAction(element!),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.Action, "Unsupported action.")
             };
@@ -2631,6 +2631,9 @@ public static class UiAutomationBootstrap
             }
 
             // Collapse to the document start, then walk both endpoints forward.
+            // Endpoint moves clamp at the document boundary, so an offset or length
+            // past the end yields an empty or truncated range rather than an error -
+            // which is the right behaviour for a caller who cannot see the document.
             range.MoveEndpointByRange(
                 TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
                 documentRange,
@@ -2654,13 +2657,39 @@ public static class UiAutomationBootstrap
             range = null;
             return result;
         }
-        catch (COMException)
+        catch (Exception ex) when (ex is COMException or NotSupportedException)
         {
             return null;
         }
         finally
         {
             FinalRelease(range);
+        }
+    }
+
+    /// <summary>
+    /// Runs a text-range operation, translating a provider that does not implement
+    /// it into an explanation rather than a raw COM message.
+    /// </summary>
+    /// <remarks>
+    /// Supporting the Text pattern obliges a provider to return text; it does not
+    /// oblige it to implement <c>Clone</c>, the endpoint moves, <c>Select</c> or
+    /// <c>ScrollIntoView</c>. Several bridged and read-only providers raise
+    /// E_NOTIMPL for those, which reaches managed code as
+    /// <see cref="NotSupportedException"/> and would otherwise surface to the user
+    /// as the unactionable "Specified method is not supported".
+    /// </remarks>
+    private static string InvokeTextRangeOperation(Func<string> operation)
+    {
+        try
+        {
+            return operation();
+        }
+        catch (NotSupportedException)
+        {
+            throw new InvalidOperationException(
+                "This provider exposes text but does not support manipulating text ranges. "
+                + "Reading with the 'text' command still works.");
         }
     }
 

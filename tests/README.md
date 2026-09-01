@@ -84,7 +84,13 @@ MSAA bridge, Edge for TextChild and ARIA.
 Two things remain unverified end to end and are documented as such in
 [the COM reference](../docs/UIAUTOMATION-COM-REFERENCE.md): the receive path for
 `changes` and `active-text-position` events, for which no raising provider could
-be found, and the success path of `action rotate`.
+be found.
+
+`action rotate` is no longer among them. WPF's built-in automation peers all
+report `canRotate: false`, so the success path was closed with a purpose-built
+peer implementing `ITransformProvider`: two successive rotations moved the
+provider's own state from 45 to 135 degrees, read back through UI Automation
+rather than trusted from the return value.
 
 ## Repository checks
 

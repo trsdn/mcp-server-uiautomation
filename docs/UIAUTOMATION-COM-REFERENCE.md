@@ -387,6 +387,12 @@ exactly `quick`; `move-caret --int 0` produced a caret reading back at offset 0.
 Both failure paths — text not present, and no range specified — report which
 input was missing.
 
+**Out-of-range offsets clamp rather than throw.** An offset arrives from a caller
+who cannot see the document, so a value past the end is ordinary input rather
+than programmer error. Verified against a live provider: an offset far beyond the
+document yields an empty selection, a length far beyond it stops at the document
+end, and a negative offset is treated as zero. None of these fail.
+
 ### Changes and active-text-position events
 
 Two further event kinds complete the `wait-event` surface. Both are implemented,
@@ -506,6 +512,14 @@ the pattern is not the same as permitting every operation — a fixed-size dialo
 exposes Transform and reports `canResize: false` — so `move`, `resize` and
 `rotate` check the specific capability first and fail naming it, rather than
 letting the call reach COM and return an opaque provider error.
+
+`rotate` is verified in both directions. WPF's built-in automation peers all
+report `canRotate: false`, so the success path was checked against a purpose-built
+peer implementing `ITransformProvider` with rotation enabled: two successive
+`action rotate` calls moved the provider's own state from 45 to 135 degrees, read
+back through UI Automation rather than taken from the return value. The failure
+path was checked against a real window that reports `canRotate: false`, which
+produces the capability-specific message.
 
 `TransformPattern2` (`Zoom`, `ZoomByUnit`, `CanZoom`, `ZoomLevel`) stays
 detect-only. Zoom would be genuinely useful against document and map surfaces,

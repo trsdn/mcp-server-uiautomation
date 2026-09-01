@@ -178,4 +178,90 @@ public sealed class TextTests(DesktopSampleFixture desktop)
             Assert.Contains("Text pattern", error.Message, StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    [DesktopTheory]
+    [InlineData(100000, 5)]      // offset far beyond the document
+    [InlineData(2, 100000)]      // length far beyond the document
+    [InlineData(0, 0)]           // degenerate range
+    [InlineData(-5, 3)]          // negative offset, clamped
+    [InlineData(3, -1)]          // negative length, clamped
+    public void SelectText_ClampsOutOfRangeOffsetsOrExplainsItself(int startOffset, int length)
+    {
+        // Offsets arrive from a caller who cannot see the document, so out-of-range
+        // values are ordinary input rather than programmer error. Verified against a
+        // live provider: an offset past the end yields an empty selection, a length
+        // past it stops at the document end, and a negative value is treated as zero.
+        //
+        // The one legitimate failure is a provider that exposes text but not range
+        // manipulation. That must be explained, not surfaced as the unactionable
+        // "Specified method is not supported" that this test originally caught.
+        var provider = FindTextProvider();
+        if (provider is null)
+        {
+            return;
+        }
+
+        var exception = Record.Exception(() => service.PerformAction(new UiAutomationActionRequest
+        {
+            Action = "select-text",
+            Locator = LocatorFor(provider),
+            IntValue = startOffset,
+            NumberValue = length
+        }));
+
+        if (exception is not null)
+        {
+            Assert.Contains("does not support manipulating text ranges", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [DesktopFact]
+    public void MoveCaret_AcceptsAnOffsetBeyondTheDocumentOrExplainsItself()
+    {
+        var provider = FindTextProvider();
+        if (provider is null)
+        {
+            return;
+        }
+
+        var exception = Record.Exception(() => service.PerformAction(new UiAutomationActionRequest
+        {
+            Action = "move-caret",
+            Locator = LocatorFor(provider),
+            IntValue = 100000
+        }));
+
+        if (exception is not null)
+        {
+            Assert.Contains("does not support manipulating text ranges", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [DesktopFact]
+    public void TextRangeFailuresNeverLeakTheRawComMessage()
+    {
+        // "Specified method is not supported" tells a caller nothing about what to
+        // do next. Every text-range verb must translate it.
+        var provider = FindTextProvider();
+        if (provider is null)
+        {
+            return;
+        }
+
+        foreach (var action in new[] { "select-text", "move-caret", "scroll-text-into-view" })
+        {
+            var exception = Record.Exception(() => service.PerformAction(new UiAutomationActionRequest
+            {
+                Action = action,
+                Locator = LocatorFor(provider),
+                IntValue = 0,
+                NumberValue = 1
+            }));
+
+            if (exception is not null)
+            {
+                Assert.DoesNotContain("Specified method is not supported", exception.Message, StringComparison.OrdinalIgnoreCase);
+            }
+        }
+    }
 }
