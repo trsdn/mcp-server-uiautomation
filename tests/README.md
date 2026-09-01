@@ -41,29 +41,43 @@ Two consequences worth knowing:
   slow and unreliable: UI Automation intermittently answered a rapid series of
   wide scans with `E_UNEXPECTED` or a timeout, which said nothing about the code
   under test. `DesktopSampleFixture` takes one sample per run and shares it.
-- **A busy desktop can still produce an occasional transient failure.** On a
-  developer machine with many applications open, roughly one run in seven saw a
-  single flake. On a quiet CI runner this is far less likely. A repeated failure
-  in the same test is a real signal; a single isolated one is worth re-running
-  before investigating.
+- **Treat a repeated failure as a real signal.** An earlier version of this file
+  described roughly one run in seven failing as an environmental fact of testing
+  against a live desktop. That was wrong: most of it was a genuine bug — an event
+  sender read across an apartment boundary after the element had been destroyed.
+  Fixing it produced eight consecutive clean runs of the previously-flaky tests.
+  If a test fails repeatedly, assume the code is at fault before the environment.
 
 ## What these tests found
 
-They are not decoration. Writing them surfaced four real defects in code that
+They are not decoration. Writing them surfaced six real defects in code that
 had already been manually verified and shipped:
 
 1. **A race condition in every event handler.** The captured sender was touched
    by both the UI Automation callback thread and the waiting STA thread without
    synchronisation, producing an intermittent `NullReferenceException` under a
    burst of structure-changed events. Now a lock-free first-event-wins exchange.
-2. **`NotSupportedException` escaping text search.** Advertising the Text
+2. **An event sender read after the element had died.** Synchronising the
+   capture was necessary but not sufficient: the sender crosses an apartment
+   boundary and may refer to an element that no longer exists, especially after
+   a timeout. An unreadable sender is now reported as no sender rather than
+   failing the whole wait.
+3. **`NotSupportedException` escaping text search.** Advertising the Text
    pattern does not oblige a provider to implement `FindText`; several raise
    `E_NOTIMPL`, which surfaces as `NotSupportedException` rather than
    `COMException` and took the whole text read down.
-3. **`TryRead` catching too narrowly.** It caught only `COMException`, so a dead
+4. **The same defect on the offset path.** Every earlier text check used
+   Notepad, which implements the entire Text pattern; providers that expose text
+   but not range manipulation leaked the unactionable "Specified method is not
+   supported" from `select-text`, `move-caret` and `scroll-text-into-view`.
+5. **`TryRead` catching too narrowly.** It caught only `COMException`, so a dead
    or partially-implemented element could still abort a projection.
-4. **A spurious `Pattern:0` entry.** Providers occasionally report a zero
+6. **A spurious `Pattern:0` entry.** Providers occasionally report a zero
    pattern id, which is not a pattern.
+
+Defects 2 and 4 are worth dwelling on: neither could have been found by manual
+testing, because both depend on a provider or a timing window that a developer
+driving Notepad by hand will never hit.
 
 ## Manual validation
 
