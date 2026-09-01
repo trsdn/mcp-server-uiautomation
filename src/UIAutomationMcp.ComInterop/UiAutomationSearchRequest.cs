@@ -33,5 +33,18 @@ public sealed class UiAutomationSearchRequest
 
     public int MaxResults { get; init; } = 50;
 
+    // Negated criteria. UI Automation has CreateNotCondition, so "every button
+    // except Cancel" is expressible in the provider rather than by over-fetching
+    // and filtering client-side - which is both slower, because every excluded
+    // element still costs a cross-process read, and unreliable, because
+    // MaxResults may be consumed entirely by elements the caller meant to skip.
+    public string? NotName { get; init; }
+
+    public string? NotClassName { get; init; }
+
+    public string? NotAutomationId { get; init; }
+
+    public int? NotControlType { get; init; }
+
     public UiAutomationCacheRequestInfo? CacheRequest { get; init; }
 }

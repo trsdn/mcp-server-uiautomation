@@ -331,6 +331,36 @@ Verified against the Windows 11 taskbar, whose task-list buttons expose the Drag
 with populated `grabbedItems`, and against File Explorer's list view, which exposes
 DropTarget.
 
+
+### Condition model and negation
+
+Locator criteria are AND-composed property conditions. Negated criteria wrap a
+property condition in `CreateNotCondition`, so exclusions are evaluated by the
+provider rather than by fetching everything and filtering client-side.
+
+That distinction is not only about speed, though every excluded element does
+cost a cross-process read. It is about correctness under `--max-results`: a cap
+consumed entirely by elements the caller meant to skip returns a truncated list
+that looks complete.
+
+`--not-name`, `--not-class`, `--not-automation-id` and `--not-control-type`
+compose with the positive criteria and with `--scope`. A request carrying only
+negative criteria is still a request; it resolves against the search origin
+rather than being treated as "no locator given".
+
+`CreateFalseCondition` is deliberately unused - it has no caller that a true
+condition plus ordinary filtering does not already serve.
+
+### Absence as a result
+
+`Inspect` throws when nothing matches; `TryInspect` returns null. Both are now
+reachable: `inspect --try` (CLI) and `tryInspect: true` (MCP) select the second.
+
+This matters for assertions about things that should be *gone* - a dialog that
+has closed, a spinner that has stopped. Without it, proving absence meant
+catching a thrown error and inferring intent from its message. It pairs with
+`--no-virtualized`, which exists so a caller can assert an item is genuinely
+absent rather than merely unmaterialized.
 ### Transform and ScrollItem
 
 `transformPattern` reports `canMove`, `canResize` and `canRotate`. Advertising

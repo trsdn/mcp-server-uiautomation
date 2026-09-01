@@ -33,7 +33,9 @@ try
         "find-name" => service.FindFirstByName(input.RequireOption("--name")),
         "find-class" => service.FindFirstByClassName(input.RequireOption("--class")),
         "find-automation-id" => service.FindFirstByAutomationId(input.RequireOption("--automation-id")),
-        "inspect" => service.Inspect(BuildLocateRequest(input, requireExplicit: false)),
+        "inspect" => input.HasFlag("--try")
+            ? service.TryInspect(BuildLocateRequest(input, requireExplicit: false))
+            : service.Inspect(BuildLocateRequest(input, requireExplicit: false)),
         "find" => service.FindAll(BuildSearchRequest(input)),
         "children" => service.ListChildren(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--view") ?? "control", ParseOptionalInt(input, "--max-results") ?? 50),
         "descendants" => service.ListDescendants(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--view") ?? "control", ParseOptionalInt(input, "--max-results") ?? 50),
@@ -77,6 +79,9 @@ static UiAutomationLocateRequest BuildLocateRequest(CliInput input, bool require
         AutomationId = input.GetOption("--automation-id"),
         FrameworkId = input.GetOption("--framework-id"),
         Scope = input.GetOption("--scope") ?? "subtree",
+        NotName = input.GetOption("--not-name"),
+        NotClassName = input.GetOption("--not-class"),
+        NotAutomationId = input.GetOption("--not-automation-id"),
         RealizeVirtualized = !input.HasFlag("--no-virtualized"),
         CacheRequest = BuildCacheRequest(input)
     };
@@ -84,6 +89,11 @@ static UiAutomationLocateRequest BuildLocateRequest(CliInput input, bool require
     if (input.TryGetOption("--control-type", out var controlTypeText))
     {
         request.ControlType = int.Parse(controlTypeText, CultureInfo.InvariantCulture);
+    }
+
+    if (input.TryGetOption("--not-control-type", out var notControlTypeText))
+    {
+        request.NotControlType = int.Parse(notControlTypeText, CultureInfo.InvariantCulture);
     }
 
     if (input.TryGetOption("--process-id", out var processIdText))
@@ -111,7 +121,11 @@ static UiAutomationLocateRequest BuildLocateRequest(CliInput input, bool require
         || !string.IsNullOrWhiteSpace(request.AutomationId)
         || !string.IsNullOrWhiteSpace(request.FrameworkId)
         || request.ControlType.HasValue
-        || request.ProcessId.HasValue;
+        || request.ProcessId.HasValue
+        || !string.IsNullOrWhiteSpace(request.NotName)
+        || !string.IsNullOrWhiteSpace(request.NotClassName)
+        || !string.IsNullOrWhiteSpace(request.NotAutomationId)
+        || request.NotControlType.HasValue;
 
     if (requireExplicit && !hasLocator)
     {
@@ -140,6 +154,10 @@ static UiAutomationSearchRequest BuildSearchRequest(CliInput input)
         ControlType = locate.ControlType,
         ProcessId = locate.ProcessId,
         SearchFromFocused = locate.SearchFromFocused,
+        NotName = locate.NotName,
+        NotClassName = locate.NotClassName,
+        NotAutomationId = locate.NotAutomationId,
+        NotControlType = locate.NotControlType,
         Scope = locate.Scope,
         MaxResults = maxResults,
         CacheRequest = locate.CacheRequest
@@ -229,7 +247,8 @@ static void WriteHelp()
     Console.WriteLine("  find-name --name <text>");
     Console.WriteLine("  find-class --class <class>");
     Console.WriteLine("  find-automation-id --automation-id <id>");
-    Console.WriteLine("  inspect [locator flags]");
+    Console.WriteLine("  inspect [locator flags] [--try]");
+    Console.WriteLine("    --try                          return null and exit 0 when nothing matches, instead of failing");
     Console.WriteLine("  find [locator flags] [--max-results <n>]");
     Console.WriteLine("  children [locator flags] [--view raw|control|content] [--max-results <n>]");
     Console.WriteLine("  descendants [locator flags] [--view raw|control|content] [--max-results <n>]");
@@ -262,6 +281,10 @@ static void WriteHelp()
     Console.WriteLine("  --framework-id <id>");
     Console.WriteLine("  --control-type <id>");
     Console.WriteLine("  --process-id <pid>");
+    Console.WriteLine("  --not-name <text>                exclude elements whose name matches");
+    Console.WriteLine("  --not-class <class>              exclude elements whose class name matches");
+    Console.WriteLine("  --not-automation-id <id>         exclude elements whose automation id matches");
+    Console.WriteLine("  --not-control-type <id>          exclude elements of this control type");
     Console.WriteLine("  --scope <element|children|descendants|subtree>");
     Console.WriteLine("  --no-virtualized                 do not ask ItemContainer providers for items missing from the live tree");
     Console.WriteLine("  --cache");

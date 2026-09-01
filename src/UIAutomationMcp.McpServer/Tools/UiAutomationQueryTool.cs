@@ -45,12 +45,22 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
         string? frameworkId = null,
         int? controlType = null,
         int? processId = null,
+        string? notName = null,
+        string? notClassName = null,
+        string? notAutomationId = null,
+        int? notControlType = null,
         bool cache = false,
         string cacheScope = "subtree",
         string cacheView = "control",
         string scope = "subtree",
-        bool realizeVirtualized = true) =>
-        Execute(() => service.Inspect(CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView, realizeVirtualized)));
+        bool realizeVirtualized = true,
+        bool tryInspect = false)
+    {
+        var locator = CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView, realizeVirtualized, notName, notClassName, notAutomationId, notControlType);
+        return tryInspect
+            ? Execute(() => service.TryInspect(locator))
+            : Execute(() => service.Inspect(locator));
+    }
 
     [McpServerTool(Name = "uia_find")]
     public string Find(
@@ -66,6 +76,10 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
         string? frameworkId = null,
         int? controlType = null,
         int? processId = null,
+        string? notName = null,
+        string? notClassName = null,
+        string? notAutomationId = null,
+        int? notControlType = null,
         bool cache = false,
         string cacheScope = "subtree",
         string cacheView = "control",
@@ -85,6 +99,10 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
             FrameworkId = frameworkId,
             ControlType = controlType,
             ProcessId = processId,
+            NotName = notName,
+            NotClassName = notClassName,
+            NotAutomationId = notAutomationId,
+            NotControlType = notControlType,
             Scope = scope,
             MaxResults = maxResults,
             CacheRequest = CreateCacheRequest(cache, cacheScope, cacheView)
@@ -309,7 +327,11 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
         bool cache,
         string cacheScope,
         string cacheView,
-        bool realizeVirtualized = true) =>
+        bool realizeVirtualized = true,
+        string? notName = null,
+        string? notClassName = null,
+        string? notAutomationId = null,
+        int? notControlType = null) =>
         new()
         {
             DesktopRoot = root,
@@ -325,6 +347,10 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
             ControlType = controlType,
             ProcessId = processId,
             Scope = scope,
+            NotName = notName,
+            NotClassName = notClassName,
+            NotAutomationId = notAutomationId,
+            NotControlType = notControlType,
             RealizeVirtualized = realizeVirtualized,
             CacheRequest = CreateCacheRequest(cache, cacheScope, cacheView)
         };

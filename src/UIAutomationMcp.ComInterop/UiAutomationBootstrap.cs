@@ -1170,7 +1170,13 @@ public static class UiAutomationBootstrap
         || !string.IsNullOrWhiteSpace(request.AutomationId)
         || !string.IsNullOrWhiteSpace(request.FrameworkId)
         || request.ControlType.HasValue
-        || request.ProcessId.HasValue;
+        || request.ProcessId.HasValue
+        // A request carrying only negative criteria is still a request. Treating it
+        // as "no locator" would silently resolve to the search origin instead.
+        || !string.IsNullOrWhiteSpace(request.NotName)
+        || !string.IsNullOrWhiteSpace(request.NotClassName)
+        || !string.IsNullOrWhiteSpace(request.NotAutomationId)
+        || request.NotControlType.HasValue;
 
     private static IUIAutomationCondition BuildFilterCondition(IUIAutomation automation, UiAutomationLocateRequest request)
     {
@@ -1208,6 +1214,14 @@ public static class UiAutomationBootstrap
                 conditions.Add(automation.CreatePropertyCondition(UIA_PropertyIds.UIA_ProcessIdPropertyId, request.ProcessId.Value));
             }
 
+            AddNegatedCondition(automation, conditions, UIA_PropertyIds.UIA_NamePropertyId, request.NotName);
+            AddNegatedCondition(automation, conditions, UIA_PropertyIds.UIA_ClassNamePropertyId, request.NotClassName);
+            AddNegatedCondition(automation, conditions, UIA_PropertyIds.UIA_AutomationIdPropertyId, request.NotAutomationId);
+            if (request.NotControlType.HasValue)
+            {
+                AddNegatedCondition(automation, conditions, UIA_PropertyIds.UIA_ControlTypePropertyId, request.NotControlType.Value);
+            }
+
             if (conditions.Count == 0)
             {
                 return automation.CreateTrueCondition();
@@ -1226,6 +1240,35 @@ public static class UiAutomationBootstrap
         }
     }
 
+    /// <summary>
+    /// Wraps a property condition in <c>CreateNotCondition</c> and adds it to the
+    /// AND-composed list. The inner condition is released immediately: the Not
+    /// wrapper holds its own reference, and the caller only ever releases what is
+    /// in <paramref name="conditions"/>.
+    /// </summary>
+    private static void AddNegatedCondition(
+        IUIAutomation automation,
+        List<IUIAutomationCondition> conditions,
+        int propertyId,
+        object? value)
+    {
+        if (value is null || (value is string text && string.IsNullOrWhiteSpace(text)))
+        {
+            return;
+        }
+
+        IUIAutomationCondition? inner = null;
+        try
+        {
+            inner = automation.CreatePropertyCondition(propertyId, value);
+            conditions.Add(automation.CreateNotCondition(inner));
+        }
+        finally
+        {
+            FinalRelease(inner);
+        }
+    }
+
     private static IUIAutomationCondition BuildFilterCondition(IUIAutomation automation, UiAutomationSearchRequest request) =>
         BuildFilterCondition(
             automation,
@@ -1237,6 +1280,10 @@ public static class UiAutomationBootstrap
                 FrameworkId = request.FrameworkId,
                 ControlType = request.ControlType,
                 ProcessId = request.ProcessId,
+                NotName = request.NotName,
+                NotClassName = request.NotClassName,
+                NotAutomationId = request.NotAutomationId,
+                NotControlType = request.NotControlType,
                 Scope = request.Scope
             });
 

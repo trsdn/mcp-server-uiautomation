@@ -23,6 +23,8 @@
 - search by control type
 - search by process id
 - multi-result `FindAll(...)`
+- negative locator criteria (`--not-name`, `--not-class`, `--not-automation-id`, `--not-control-type`) composed through `CreateNotCondition`
+- non-throwing lookup via `inspect --try` / `tryInspect`, so absence is a result rather than an error
 - immediate child enumeration from raw, control, and content views
 - descendant enumeration from raw, control, and content views
 - tree navigation via parent, child, sibling, and normalize operations
