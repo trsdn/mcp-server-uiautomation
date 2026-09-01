@@ -476,6 +476,8 @@ public static class UiAutomationBootstrap
         StructureChangedEventHandler? structureHandler = null;
         TextEditEventHandler? textEditHandler = null;
         NotificationEventHandler? notificationHandler = null;
+        ChangesEventHandler? changesHandler = null;
+        ActiveTextPositionEventHandler? activeTextHandler = null;
 
         try
         {
@@ -543,6 +545,35 @@ public static class UiAutomationBootstrap
                         notificationHandler);
                     break;
 
+                case "changes":
+                    origin = ResolveEventOrigin(automation, request, cacheRequest);
+                    changesHandler = new ChangesEventHandler();
+                    var changesAutomation = automation as IUIAutomation4
+                        ?? throw new InvalidOperationException("Changes events require UI Automation 4 or later.");
+                    // The registration takes a ref to the first element of a change-type
+                    // array plus a count, not an array parameter.
+                    var changeTypes = new[] { request.ChangeId ?? UIA_ChangeIds.UIA_SummaryChangeId };
+                    changesAutomation.AddChangesEventHandler(
+                        origin,
+                        ParseTreeScope(request.Locator.Scope),
+                        ref changeTypes[0],
+                        changeTypes.Length,
+                        cacheRequest,
+                        changesHandler);
+                    break;
+
+                case "active-text-position":
+                    origin = ResolveEventOrigin(automation, request, cacheRequest);
+                    activeTextHandler = new ActiveTextPositionEventHandler();
+                    var activeTextAutomation = automation as IUIAutomation6
+                        ?? throw new InvalidOperationException("Active-text-position events require UI Automation 6 or later.");
+                    activeTextAutomation.AddActiveTextPositionChangedEventHandler(
+                        origin,
+                        ParseTreeScope(request.Locator.Scope),
+                        cacheRequest,
+                        activeTextHandler);
+                    break;
+
                 default:
                     throw new ArgumentOutOfRangeException(nameof(request), request.EventKind, "Unsupported event kind.");
             }
@@ -555,6 +586,8 @@ public static class UiAutomationBootstrap
                 "structure" => structureHandler!.WaitHandle.WaitOne(timeoutMs),
                 "text-edit" => textEditHandler!.WaitHandle.WaitOne(timeoutMs),
                 "notification" => notificationHandler!.WaitHandle.WaitOne(timeoutMs),
+                "changes" => changesHandler!.WaitHandle.WaitOne(timeoutMs),
+                "active-text-position" => activeTextHandler!.WaitHandle.WaitOne(timeoutMs),
                 _ => false
             };
 
@@ -566,6 +599,8 @@ public static class UiAutomationBootstrap
                 "structure" => structureHandler!.ToResult(automation, !signaled),
                 "text-edit" => textEditHandler!.ToResult(automation, !signaled),
                 "notification" => notificationHandler!.ToResult(automation, !signaled),
+                "changes" => changesHandler!.ToResult(automation, !signaled),
+                "active-text-position" => activeTextHandler!.ToResult(automation, !signaled),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.EventKind, "Unsupported event kind.")
             };
         }
@@ -601,12 +636,24 @@ public static class UiAutomationBootstrap
                 automation5.RemoveNotificationEventHandler(origin, notificationHandler);
             }
 
+            if (changesHandler is not null && origin is not null && automation is IUIAutomation4 automation4)
+            {
+                automation4.RemoveChangesEventHandler(origin, changesHandler);
+            }
+
+            if (activeTextHandler is not null && origin is not null && automation is IUIAutomation6 automation6)
+            {
+                automation6.RemoveActiveTextPositionChangedEventHandler(origin, activeTextHandler);
+            }
+
             focusHandler?.Dispose();
             automationHandler?.Dispose();
             propertyHandler?.Dispose();
             structureHandler?.Dispose();
             textEditHandler?.Dispose();
             notificationHandler?.Dispose();
+            changesHandler?.Dispose();
+            activeTextHandler?.Dispose();
             FinalRelease(cacheRequest);
             FinalRelease(origin);
             FinalRelease(automation);
@@ -3328,6 +3375,162 @@ public static class UiAutomationBootstrap
                     NotificationProcessingName = Processing.ToString(),
                     DisplayString = DisplayString,
                     ActivityId = ActivityId,
+                    SourceElement = ReadElementInfo(automation, sender)
+                };
+            }
+            finally
+            {
+                FinalRelease(sender);
+                sender = null;
+            }
+        }
+
+        public void Dispose() => WaitHandle.Dispose();
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class ChangesEventHandler : IUIAutomationChangesEventHandler, IDisposable
+    {
+        private IUIAutomationElement? sender;
+
+        public AutoResetEvent WaitHandle { get; } = new(false);
+
+        public int ChangeId { get; private set; }
+
+        public string? Payload { get; private set; }
+
+        public int ChangeCount { get; private set; }
+
+        public void HandleChangesEvent(IUIAutomationElement sender, ref UiaChangeInfo uiaChanges, int changesCount)
+        {
+            if (this.sender is null)
+            {
+                this.sender = sender;
+                // The interop signature is `ref UiaChangeInfo` plus a count rather than
+                // an array, so only the first entry is reachable without unsafe pointer
+                // arithmetic. changesCount is reported so a caller can tell that more
+                // changes were coalesced into the same notification.
+                ChangeId = uiaChanges.uiaId;
+                Payload = uiaChanges.payload?.ToString();
+                ChangeCount = changesCount;
+                WaitHandle.Set();
+                return;
+            }
+
+            FinalRelease(sender);
+        }
+
+        public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
+        {
+            try
+            {
+                if (sender is null)
+                {
+                    return new UiAutomationEventResult { EventKind = "changes", TimedOut = timedOut };
+                }
+
+                return new UiAutomationEventResult
+                {
+                    EventKind = "changes",
+                    TimedOut = timedOut,
+                    ChangeId = ChangeId,
+                    ChangePayload = Payload,
+                    ChangeCount = ChangeCount,
+                    SourceElement = ReadElementInfo(automation, sender)
+                };
+            }
+            finally
+            {
+                FinalRelease(sender);
+                sender = null;
+            }
+        }
+
+        public void Dispose() => WaitHandle.Dispose();
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class ActiveTextPositionEventHandler : IUIAutomationActiveTextPositionChangedEventHandler, IDisposable
+    {
+        private IUIAutomationElement? sender;
+
+        public AutoResetEvent WaitHandle { get; } = new(false);
+
+        public string? RangeText { get; private set; }
+
+        public int? RangeOffset { get; private set; }
+
+        public void HandleActiveTextPositionChangedEvent(IUIAutomationElement sender, IUIAutomationTextRange range)
+        {
+            if (this.sender is null)
+            {
+                this.sender = sender;
+                try
+                {
+                    RangeText = TryRead<string?>(() => range?.GetText(-1), null);
+                    RangeOffset = ComputeRangeOffset(sender, range);
+                }
+                finally
+                {
+                    FinalRelease(range);
+                }
+
+                WaitHandle.Set();
+                return;
+            }
+
+            FinalRelease(sender);
+            FinalRelease(range);
+        }
+
+        /// <summary>
+        /// Derives a document offset for the reported range, reusing the same
+        /// clone-and-move technique the text reader uses. IUIAutomationTextRange
+        /// exposes no offset property, so this is the only way to get one.
+        /// </summary>
+        private static int? ComputeRangeOffset(IUIAutomationElement element, IUIAutomationTextRange? range)
+        {
+            if (range is null)
+            {
+                return null;
+            }
+
+            IUIAutomationTextPattern? textPattern = null;
+            IUIAutomationTextRange? documentRange = null;
+            try
+            {
+                textPattern = GetPattern<IUIAutomationTextPattern>(element, UIA_PatternIds.UIA_TextPatternId);
+                documentRange = textPattern?.DocumentRange;
+                return documentRange is null ? null : ComputeOffset(documentRange, range);
+            }
+            catch (COMException)
+            {
+                return null;
+            }
+            finally
+            {
+                FinalRelease(documentRange);
+                FinalRelease(textPattern);
+            }
+        }
+
+        public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
+        {
+            try
+            {
+                if (sender is null)
+                {
+                    return new UiAutomationEventResult { EventKind = "active-text-position", TimedOut = timedOut };
+                }
+
+                return new UiAutomationEventResult
+                {
+                    EventKind = "active-text-position",
+                    TimedOut = timedOut,
+                    TextRangeText = RangeText,
+                    TextRangeOffset = RangeOffset,
                     SourceElement = ReadElementInfo(automation, sender)
                 };
             }

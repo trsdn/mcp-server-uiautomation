@@ -195,7 +195,8 @@ static UiAutomationEventWaitRequest BuildEventWaitRequest(CliInput input) => new
     CacheRequest = BuildCacheRequest(input),
     TimeoutMs = input.TryGetOption("--timeout-ms", out var timeoutText) ? int.Parse(timeoutText, CultureInfo.InvariantCulture) : 5000,
     EventId = input.TryGetOption("--event-id", out var eventIdText) ? int.Parse(eventIdText, CultureInfo.InvariantCulture) : null,
-    PropertyId = input.TryGetOption("--property-id", out var propertyIdText) ? int.Parse(propertyIdText, CultureInfo.InvariantCulture) : null
+    PropertyId = input.TryGetOption("--property-id", out var propertyIdText) ? int.Parse(propertyIdText, CultureInfo.InvariantCulture) : null,
+    ChangeId = input.TryGetOption("--change-id", out var changeIdText) ? int.Parse(changeIdText, CultureInfo.InvariantCulture) : null
 };
 
 static UiAutomationCacheRequestInfo? BuildCacheRequest(CliInput input)
@@ -264,8 +265,10 @@ static void WriteHelp()
     Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
     Console.WriteLine("    realize                        realizes a virtualized item so it can be read or acted on");
     Console.WriteLine("    default-action                 runs the MSAA default action (LegacyIAccessible) for controls with no modern actionable pattern");
-    Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure|text-edit|notification> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [locator flags]");
+    Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure|text-edit|notification|changes|active-text-position> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [--change-id <id>] [locator flags]");
     Console.WriteLine("    notification                   observes provider announcements (\"File saved\", \"3 results found\") in displayString");
+    Console.WriteLine("    changes                        observes batched provider changes; --change-id defaults to 90000 (UIA_SummaryChangeId)");
+    Console.WriteLine("    active-text-position           observes caret/active-position moves in a text provider, with a document offset");
     Console.WriteLine("    text-edit                      observes auto-correct, IME composition, and auto-complete changes (TextEdit pattern)");
     Console.WriteLine("    drag and drop are automation events: --event-kind automation --event-id 20026 (drag start), 20027 (cancel),");
     Console.WriteLine("      20028 (complete), 20029 (drag enter), 20030 (drag leave), 20031 (dropped)");

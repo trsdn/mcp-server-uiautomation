@@ -53,5 +53,27 @@ public sealed class UiAutomationEventResult
     /// <summary>Provider-chosen id correlating related notifications.</summary>
     public string? ActivityId { get; init; }
 
+    /// <summary>Change id reported by a changes event; <c>UIA_SummaryChangeId</c> is 90000.</summary>
+    public int? ChangeId { get; init; }
+
+    /// <summary>Provider-supplied payload for the reported change, rendered as text.</summary>
+    public string? ChangePayload { get; init; }
+
+    /// <summary>
+    /// How many changes the provider coalesced into this notification. Only the
+    /// first is readable: the interop signature passes a single <c>ref</c> struct
+    /// plus a count rather than an array.
+    /// </summary>
+    public int? ChangeCount { get; init; }
+
+    /// <summary>Text of the range reported by an active-text-position event.</summary>
+    public string? TextRangeText { get; init; }
+
+    /// <summary>
+    /// Document offset of that range, computed the same way the <c>text</c> command
+    /// derives caret offsets, since ranges expose no offset property.
+    /// </summary>
+    public int? TextRangeOffset { get; init; }
+
     public UiAutomationElementInfo? SourceElement { get; init; }
 }

@@ -251,6 +251,7 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
         int timeoutMs = 5000,
         int? eventId = null,
         int? propertyId = null,
+        int? changeId = null,
         bool root = false,
         bool focused = false,
         bool fromFocused = false,
@@ -273,6 +274,7 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
             TimeoutMs = timeoutMs,
             EventId = eventId,
             PropertyId = propertyId,
+            ChangeId = changeId,
             Locator = CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView),
             CacheRequest = CreateCacheRequest(cache, cacheScope, cacheView)
         }));

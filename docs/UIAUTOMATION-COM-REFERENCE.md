@@ -332,6 +332,51 @@ with populated `grabbedItems`, and against File Explorer's list view, which expo
 DropTarget.
 
 
+### Changes and active-text-position events
+
+Two further event kinds complete the `wait-event` surface. Both are implemented,
+and both are **honestly less proven than the rest of this document**.
+
+| Kind | Interface | Registration |
+| --- | --- | --- |
+| `changes` | `IUIAutomation4` | `AddChangesEventHandler` |
+| `active-text-position` | `IUIAutomation6` | `AddActiveTextPositionChangedEventHandler` |
+
+Note the interface levels: `changes` is on **4**, not 5. `IUIAutomation5` is
+where *notification* lives. Both casts are soft and fail with a readable message.
+
+`changes` takes `--change-id`, defaulting to `UIA_SummaryChangeId` (90000) —
+the only change id UI Automation defines.
+
+Its interop signature is awkward in a way worth knowing about. Both the
+registration and the callback take a `ref` to the first element of an array plus
+a separate count, rather than an array parameter:
+
+```csharp
+void HandleChangesEvent(IUIAutomationElement sender, ref UiaChangeInfo uiaChanges, int changesCount);
+```
+
+Only the first change is therefore reachable without unsafe pointer arithmetic.
+`changeCount` is reported so a caller can tell that more changes were coalesced
+into the same notification, rather than silently seeing one.
+
+`active-text-position` reports the range's text plus a document offset, computed
+the same way the `text` command derives caret offsets — by cloning the document
+range and moving its endpoint, because `IUIAutomationTextRange` exposes no offset
+property.
+
+**What has and has not been verified.** Registration, a clean timeout with a
+null payload, and handler removal are verified for both. The *receive* path is
+not: no provider raising either event could be found on the development machine.
+Notepad does not raise `active-text-position`, and neither does a WPF
+`RichTextBox` whose caret is being moved programmatically, at either desktop-root
+or window scope.
+
+That matches expectations — these two are the sparsest-supported events in the
+API — but it means the payload projection is reasoned from the interop
+signatures rather than observed, unlike `notification`, which was verified end to
+end. Treat the first real payload with appropriate suspicion.
+
 ### Notification events
 
 `wait-event --event-kind notification` observes `IUIAutomation5.AddNotificationEventHandler`.
