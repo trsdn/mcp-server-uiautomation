@@ -51,6 +51,7 @@
 - `UiAutomationService.Navigate(...)`
 - `UiAutomationService.ReadText(...)`
 - `UiAutomationService.ReadSelection(...)`
+- `UiAutomationService.ReadTable(...)`
 - `UiAutomationService.PerformAction(...)`
 - `UiAutomationService.WaitForEvent(...)`
 

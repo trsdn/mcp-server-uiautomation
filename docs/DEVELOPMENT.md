@@ -21,6 +21,33 @@ dotnet run --project src\UIAutomationMcp.CLI\UIAutomationMcp.CLI.csproj -- deskt
 
 For MCP server changes, verify the server starts cleanly and that stdout remains protocol-safe.
 
+## Repository checks
+
+Two scripts guard invariants the compiler cannot see. Both fail loudly if they
+find nothing to inspect, so a check that verifies nothing can never report
+success.
+
+```powershell
+pwsh -File scripts\check-com-leaks.ps1
+pwsh -File scripts\check-cli-coverage.ps1
+```
+
+`check-com-leaks.ps1` asserts that every acquired UI Automation COM proxy is
+released through `FinalRelease` or `ReleaseAll`. A leak produces no warning, no
+test failure, and no symptom until a long-running MCP session has accumulated
+enough cross-process references to matter. The script understands the
+loop-and-advance ownership transfer used by the tree walkers, so a proxy handed
+to another local and released under that name is not reported.
+
+It is a heuristic over text, not a dataflow analysis: it cannot prove a release
+is reachable on every path. It catches the common and costly case, an
+acquisition with no release at all.
+
+`check-cli-coverage.ps1` asserts that every action verb implemented in
+`PerformAction` appears in the CLI help text, that the CLI and MCP surfaces stay
+at one-to-one parity, and that no file states a tool count disagreeing with the
+code. All three have drifted silently in the past.
+
 For VS Code extension changes:
 
 ```powershell
