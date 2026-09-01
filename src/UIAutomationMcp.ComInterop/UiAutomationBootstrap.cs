@@ -1586,8 +1586,7 @@ public static class UiAutomationBootstrap
     {
         try
         {
-            var values = (int[])element.GetRuntimeId();
-            return values;
+            return element.GetRuntimeId() as int[] ?? [];
         }
         catch (COMException)
         {
@@ -3512,7 +3511,7 @@ public static class UiAutomationBootstrap
                 {
                     EventKind = "focus",
                     TimedOut = timedOut,
-                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
+                    SourceElement = ReadSenderSafely(automation, captured)
                 };
             }
             finally
@@ -3552,7 +3551,7 @@ public static class UiAutomationBootstrap
                     TimedOut = timedOut,
                     EventId = EventId,
                     EventName = EventId is null ? null : UiaEventName(EventId.Value),
-                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
+                    SourceElement = ReadSenderSafely(automation, captured)
                 };
             }
             finally
@@ -3596,7 +3595,7 @@ public static class UiAutomationBootstrap
                     TextEditChangeType = (int)ChangeType,
                     TextEditChangeTypeName = ChangeType.ToString(),
                     EventStrings = EventStrings,
-                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
+                    SourceElement = ReadSenderSafely(automation, captured)
                 };
             }
             finally
@@ -3666,7 +3665,7 @@ public static class UiAutomationBootstrap
                     NotificationProcessingName = Processing.ToString(),
                     DisplayString = DisplayString,
                     ActivityId = ActivityId,
-                    SourceElement = ReadElementInfo(automation, captured!)
+                    SourceElement = ReadSenderSafely(automation, captured)
                 };
             }
             finally
@@ -3722,7 +3721,7 @@ public static class UiAutomationBootstrap
                     ChangeId = ChangeId,
                     ChangePayload = Payload,
                     ChangeCount = ChangeCount,
-                    SourceElement = ReadElementInfo(automation, captured!)
+                    SourceElement = ReadSenderSafely(automation, captured)
                 };
             }
             finally
@@ -3810,7 +3809,7 @@ public static class UiAutomationBootstrap
                     TimedOut = timedOut,
                     TextRangeText = RangeText,
                     TextRangeOffset = RangeOffset,
-                    SourceElement = ReadElementInfo(automation, captured!)
+                    SourceElement = ReadSenderSafely(automation, captured)
                 };
             }
             finally
@@ -3853,7 +3852,7 @@ public static class UiAutomationBootstrap
                     TimedOut = timedOut,
                     PropertyId = PropertyId,
                     Value = Value,
-                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
+                    SourceElement = ReadSenderSafely(automation, captured)
                 };
             }
             finally
@@ -3904,6 +3903,38 @@ public static class UiAutomationBootstrap
         /// <summary>Takes ownership of the captured sender, leaving none behind.</summary>
         protected IUIAutomationElement? TakeSender() => Interlocked.Exchange(ref sender, null);
 
+        /// <summary>
+        /// Projects an event's sender, degrading to null rather than failing.
+        /// </summary>
+        /// <remarks>
+        /// The sender arrives on a UI Automation callback thread and is read on
+        /// this call's STA thread, so it crosses an apartment boundary and may
+        /// refer to an element that has already been destroyed - especially after
+        /// a timeout, where a late callback can land while the result is being
+        /// built. Neither is a defect in the caller's request.
+        ///
+        /// An unreadable sender is reported as no sender, which is accurate and
+        /// leaves the rest of the event payload intact. Letting it propagate would
+        /// fail the whole wait over a detail, and did: structure-changed events on
+        /// a busy desktop produced an intermittent NullReferenceException here.
+        /// </remarks>
+        protected static UiAutomationElementInfo? ReadSenderSafely(IUIAutomation automation, IUIAutomationElement? element)
+        {
+            if (element is null)
+            {
+                return null;
+            }
+
+            try
+            {
+                return ReadElementInfo(automation, element);
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         public void Dispose()
         {
             FinalRelease(TakeSender());
@@ -3944,7 +3975,7 @@ public static class UiAutomationBootstrap
                     StructureChangeType = (int?)StructureChangeType,
                     StructureChangeTypeName = StructureChangeType?.ToString(),
                     Value = RuntimeId,
-                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
+                    SourceElement = ReadSenderSafely(automation, captured)
                 };
             }
             finally
