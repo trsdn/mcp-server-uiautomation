@@ -111,7 +111,7 @@ if ($cliCommands.Count -ne $mcpTools.Count) {
 # 3. Published tool counts drift silently. Fail if any file states a number that
 #    disagrees with the code.
 $countClaims = Get-ChildItem -Path $rootDir -Recurse -File -Include *.json, *.csproj, *.md |
-    Where-Object { $_.FullName -notmatch '[\\/](bin|obj|node_modules|\.git|\.trestle)[\\/]' } |
+    Where-Object { $_.FullName -notmatch '[\\/](bin|obj|node_modules|\.git)[\\/]' } |
     Select-String -Pattern '(\d+)\s+tools' -AllMatches
 
 foreach ($claim in $countClaims) {
