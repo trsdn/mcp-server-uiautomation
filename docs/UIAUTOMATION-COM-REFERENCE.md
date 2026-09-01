@@ -332,6 +332,44 @@ with populated `grabbedItems`, and against File Explorer's list view, which expo
 DropTarget.
 
 
+### Notification events
+
+`wait-event --event-kind notification` observes `IUIAutomation5.AddNotificationEventHandler`.
+
+Notification is how a provider announces something that is neither a tree change
+nor a property change: "File saved", "3 results found", "Password too short".
+For an agent driving an application it is frequently the only programmatic
+signal that an operation finished or failed — the alternative is polling for a
+property change that may never fire.
+
+The payload is the point:
+
+```json
+{
+  "eventKind": "notification",
+  "timedOut": false,
+  "notificationKindName": "NotificationKind_ActionCompleted",
+  "notificationProcessingName": "NotificationProcessing_ImportantAll",
+  "displayString": "Probe notification fired.",
+  "activityId": "probe-activity-1"
+}
+```
+
+Two details worth knowing:
+
+- **The interface is `IUIAutomation5`, not `IUIAutomation4`.** The notification
+  *event id* was introduced alongside Windows 10 1709 APIs, but in
+  `Interop.UIAutomationClient` the add/remove methods are declared on
+  `IUIAutomation5`. The cast is soft, as with text-edit, and an older client
+  fails with a readable message rather than an `InvalidCastException`.
+- **A timeout reports no payload at all.** `NotificationKind` 0 is
+  `ItemAdded`, so populating the fields on timeout would describe a notification
+  that never happened. All notification fields are `null` when `timedOut` is
+  true.
+
+Verified against a WPF window calling
+`AutomationPeer.RaiseNotificationEvent(ActionCompleted, ImportantAll, ...)`.
+
 ### Condition model and negation
 
 Locator criteria are AND-composed property conditions. Negated criteria wrap a

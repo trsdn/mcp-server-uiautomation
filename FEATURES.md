@@ -32,7 +32,7 @@
 - build-cache request support for inspect/search/navigation
 - text extraction and selected-text reads, plus caret position, annotation runs (spelling and grammar errors, comments, highlights), IME composition state, and TextChild container lookup for inline elements
 - selection-state reads
-- one-shot event waits for focus, automation, property-changed, structure-changed, and text-edit (auto-correct, IME composition, auto-complete) events, with automation events resolved to a readable `eventName` so drag start/cancel/complete and drop enter/leave/dropped are observable
+- one-shot event waits for focus, automation, property-changed, structure-changed, text-edit (auto-correct, IME composition, auto-complete), and notification (provider announcements such as `File saved`, reported in `displayString`) events, with automation events resolved to a readable `eventName` so drag start/cancel/complete and drop enter/leave/dropped are observable
 - supported-pattern discovery
 - pattern state projection for value, range value, toggle, expand/collapse, window, scroll, selection item, multiple view, dock, transform, grid, grid item, table, table item, drag, drop target, and legacy IAccessible
 - tabular reads that return a Grid/Table control as a cell matrix with row and column headers

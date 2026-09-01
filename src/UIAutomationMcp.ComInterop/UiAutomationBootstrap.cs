@@ -475,6 +475,7 @@ public static class UiAutomationBootstrap
         PropertyChangedEventHandler? propertyHandler = null;
         StructureChangedEventHandler? structureHandler = null;
         TextEditEventHandler? textEditHandler = null;
+        NotificationEventHandler? notificationHandler = null;
 
         try
         {
@@ -530,6 +531,18 @@ public static class UiAutomationBootstrap
 
                     break;
 
+                case "notification":
+                    origin = ResolveEventOrigin(automation, request, cacheRequest);
+                    notificationHandler = new NotificationEventHandler();
+                    var notificationAutomation = automation as IUIAutomation5
+                        ?? throw new InvalidOperationException("Notification events require UI Automation 5 or later.");
+                    notificationAutomation.AddNotificationEventHandler(
+                        origin,
+                        ParseTreeScope(request.Locator.Scope),
+                        cacheRequest,
+                        notificationHandler);
+                    break;
+
                 default:
                     throw new ArgumentOutOfRangeException(nameof(request), request.EventKind, "Unsupported event kind.");
             }
@@ -541,6 +554,7 @@ public static class UiAutomationBootstrap
                 "property" => propertyHandler!.WaitHandle.WaitOne(timeoutMs),
                 "structure" => structureHandler!.WaitHandle.WaitOne(timeoutMs),
                 "text-edit" => textEditHandler!.WaitHandle.WaitOne(timeoutMs),
+                "notification" => notificationHandler!.WaitHandle.WaitOne(timeoutMs),
                 _ => false
             };
 
@@ -551,6 +565,7 @@ public static class UiAutomationBootstrap
                 "property" => propertyHandler!.ToResult(automation, !signaled),
                 "structure" => structureHandler!.ToResult(automation, !signaled),
                 "text-edit" => textEditHandler!.ToResult(automation, !signaled),
+                "notification" => notificationHandler!.ToResult(automation, !signaled),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.EventKind, "Unsupported event kind.")
             };
         }
@@ -581,11 +596,17 @@ public static class UiAutomationBootstrap
                 automation3.RemoveTextEditTextChangedEventHandler(origin, textEditHandler);
             }
 
+            if (notificationHandler is not null && origin is not null && automation is IUIAutomation5 automation5)
+            {
+                automation5.RemoveNotificationEventHandler(origin, notificationHandler);
+            }
+
             focusHandler?.Dispose();
             automationHandler?.Dispose();
             propertyHandler?.Dispose();
             structureHandler?.Dispose();
             textEditHandler?.Dispose();
+            notificationHandler?.Dispose();
             FinalRelease(cacheRequest);
             FinalRelease(origin);
             FinalRelease(automation);
@@ -3232,6 +3253,82 @@ public static class UiAutomationBootstrap
                     TextEditChangeTypeName = ChangeType.ToString(),
                     EventStrings = EventStrings,
                     SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
+                };
+            }
+            finally
+            {
+                FinalRelease(sender);
+                sender = null;
+            }
+        }
+
+        public void Dispose() => WaitHandle.Dispose();
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class NotificationEventHandler : IUIAutomationNotificationEventHandler, IDisposable
+    {
+        private IUIAutomationElement? sender;
+
+        public AutoResetEvent WaitHandle { get; } = new(false);
+
+        public NotificationKind Kind { get; private set; }
+
+        public NotificationProcessing Processing { get; private set; }
+
+        public string DisplayString { get; private set; } = string.Empty;
+
+        public string ActivityId { get; private set; } = string.Empty;
+
+        public void HandleNotificationEvent(
+            IUIAutomationElement sender,
+            NotificationKind notificationKind,
+            NotificationProcessing notificationProcessing,
+            string displayString,
+            string activityId)
+        {
+            if (this.sender is null)
+            {
+                this.sender = sender;
+                Kind = notificationKind;
+                Processing = notificationProcessing;
+                DisplayString = displayString ?? string.Empty;
+                ActivityId = activityId ?? string.Empty;
+                WaitHandle.Set();
+                return;
+            }
+
+            FinalRelease(sender);
+        }
+
+        public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
+        {
+            try
+            {
+                // Nothing arrived, so report no payload rather than the zero values
+                // of the enums - NotificationKind 0 is ItemAdded, which would read as
+                // a real notification that never happened.
+                if (sender is null)
+                {
+                    return new UiAutomationEventResult
+                    {
+                        EventKind = "notification",
+                        TimedOut = timedOut
+                    };
+                }
+
+                return new UiAutomationEventResult
+                {
+                    EventKind = "notification",
+                    TimedOut = timedOut,
+                    NotificationKind = (int)Kind,
+                    NotificationKindName = Kind.ToString(),
+                    NotificationProcessing = (int)Processing,
+                    NotificationProcessingName = Processing.ToString(),
+                    DisplayString = DisplayString,
+                    ActivityId = ActivityId,
+                    SourceElement = ReadElementInfo(automation, sender)
                 };
             }
             finally

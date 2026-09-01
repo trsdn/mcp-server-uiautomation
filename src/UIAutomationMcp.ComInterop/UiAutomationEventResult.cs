@@ -33,5 +33,25 @@ public sealed class UiAutomationEventResult
     /// </summary>
     public IReadOnlyList<string>? EventStrings { get; init; }
 
+    /// <summary>Raw <c>NotificationKind</c> reported by a notification event.</summary>
+    public int? NotificationKind { get; init; }
+
+    public string? NotificationKindName { get; init; }
+
+    /// <summary>Raw <c>NotificationProcessing</c>, describing how the announcement should be queued.</summary>
+    public int? NotificationProcessing { get; init; }
+
+    public string? NotificationProcessingName { get; init; }
+
+    /// <summary>
+    /// The text the provider wants announced - "File saved", "3 results found".
+    /// This is the payload of a notification event and usually the only reason to
+    /// have waited for one.
+    /// </summary>
+    public string? DisplayString { get; init; }
+
+    /// <summary>Provider-chosen id correlating related notifications.</summary>
+    public string? ActivityId { get; init; }
+
     public UiAutomationElementInfo? SourceElement { get; init; }
 }
