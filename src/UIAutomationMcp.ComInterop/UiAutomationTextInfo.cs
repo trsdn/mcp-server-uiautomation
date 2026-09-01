@@ -25,7 +25,7 @@ public sealed class UiAutomationTextFindResult
     /// Screen rectangles covering the match - more than one when it wraps across
     /// lines. Empty when the range is off-screen.
     /// </summary>
-    public IReadOnlyList<UiAutomationRect> BoundingRectangles { get; init; } = Array.Empty<UiAutomationRect>();
+    public IReadOnlyList<UiAutomationRect> BoundingRectangles { get; init; } = [];
 }
 
 public sealed class UiAutomationTextInfo
@@ -36,7 +36,7 @@ public sealed class UiAutomationTextInfo
 
     public string SupportedTextSelectionName { get; init; } = string.Empty;
 
-    public IReadOnlyList<string> SelectedTexts { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> SelectedTexts { get; init; } = [];
 
     /// <summary>The element supports TextPattern2, so caret and annotation data is available.</summary>
     public bool HasTextPattern2 { get; init; }
@@ -46,7 +46,7 @@ public sealed class UiAutomationTextInfo
 
     public UiAutomationTextCaretInfo? Caret { get; init; }
 
-    public IReadOnlyList<UiAutomationTextAnnotation> Annotations { get; init; } = Array.Empty<UiAutomationTextAnnotation>();
+    public IReadOnlyList<UiAutomationTextAnnotation> Annotations { get; init; } = [];
 
     /// <summary>
     /// Set when the target element is an inline child of a text container rather than a

@@ -91,7 +91,7 @@ public sealed class UiAutomationMultipleViewPatternState
 
     public string CurrentViewName { get; init; } = string.Empty;
 
-    public IReadOnlyList<UiAutomationViewInfo> SupportedViews { get; init; } = Array.Empty<UiAutomationViewInfo>();
+    public IReadOnlyList<UiAutomationViewInfo> SupportedViews { get; init; } = [];
 }
 
 public sealed class UiAutomationDockPatternState
@@ -119,7 +119,7 @@ public sealed class UiAutomationElementReference
 
     public string LocalizedControlType { get; init; } = string.Empty;
 
-    public int[] RuntimeId { get; init; } = Array.Empty<int>();
+    public int[] RuntimeId { get; init; } = [];
 
     public UiAutomationRect? BoundingRectangle { get; init; }
 }
@@ -150,16 +150,16 @@ public sealed class UiAutomationTablePatternState
 
     public string RowOrColumnMajorName { get; init; } = string.Empty;
 
-    public IReadOnlyList<UiAutomationElementReference> RowHeaders { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> RowHeaders { get; init; } = [];
 
-    public IReadOnlyList<UiAutomationElementReference> ColumnHeaders { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> ColumnHeaders { get; init; } = [];
 }
 
 public sealed class UiAutomationTableItemPatternState
 {
-    public IReadOnlyList<UiAutomationElementReference> RowHeaderItems { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> RowHeaderItems { get; init; } = [];
 
-    public IReadOnlyList<UiAutomationElementReference> ColumnHeaderItems { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> ColumnHeaderItems { get; init; } = [];
 }
 
 /// <summary>
@@ -208,7 +208,7 @@ public sealed class UiAutomationLegacyAccessiblePatternState
     public uint State { get; init; }
 
     /// <summary>Decoded <c>STATE_SYSTEM_*</c> flag names.</summary>
-    public IReadOnlyList<string> StateNames { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> StateNames { get; init; } = [];
 
     public string Help { get; init; } = string.Empty;
 
@@ -237,13 +237,13 @@ public sealed class UiAutomationDragPatternState
     public string DropEffect { get; init; } = string.Empty;
 
     /// <summary>All effects the drag source can offer, when the provider enumerates them.</summary>
-    public IReadOnlyList<string> DropEffects { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> DropEffects { get; init; } = [];
 
     /// <summary>
     /// The elements being dragged. Populated for multi-item drags; a provider dragging
     /// only the element itself normally leaves this empty.
     /// </summary>
-    public IReadOnlyList<UiAutomationElementReference> GrabbedItems { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> GrabbedItems { get; init; } = [];
 }
 
 /// <summary>
@@ -255,7 +255,7 @@ public sealed class UiAutomationDropTargetPatternState
     public string DropTargetEffect { get; init; } = string.Empty;
 
     /// <summary>All effects this target can offer, when the provider enumerates them.</summary>
-    public IReadOnlyList<string> DropTargetEffects { get; init; } = Array.Empty<string>();
+    public IReadOnlyList<string> DropTargetEffects { get; init; } = [];
 }
 
 /// <summary>

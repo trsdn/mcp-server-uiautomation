@@ -34,6 +34,9 @@ jobs:
       - name: Build solution
         run: dotnet build UIAutomationMcp.sln -c Release
 
+      - name: Run tests
+        run: dotnet test UIAutomationMcp.sln -c Release --no-build --logger "console;verbosity=minimal"
+
       - name: Run smoke executable
         run: dotnet run --project src/UIAutomationMcp.Smoke/UIAutomationMcp.Smoke.csproj -c Release
 

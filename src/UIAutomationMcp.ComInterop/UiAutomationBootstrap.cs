@@ -448,7 +448,7 @@ public static class UiAutomationBootstrap
             {
                 CanSelectMultiple = selectionPattern.CurrentCanSelectMultiple != 0,
                 IsSelectionRequired = selectionPattern.CurrentIsSelectionRequired != 0,
-                ItemCount = selectionPattern2 is null ? null : selectionPattern2.CurrentItemCount,
+                ItemCount = selectionPattern2?.CurrentItemCount,
                 CurrentSelectedItem = selectionPattern2 is null ? null : ReadReferencedElement(automation, () => selectionPattern2.CurrentCurrentSelectedItem),
                 FirstSelectedItem = selectionPattern2 is null ? null : ReadReferencedElement(automation, () => selectionPattern2.CurrentFirstSelectedItem),
                 LastSelectedItem = selectionPattern2 is null ? null : ReadReferencedElement(automation, () => selectionPattern2.CurrentLastSelectedItem),
@@ -710,10 +710,10 @@ public static class UiAutomationBootstrap
                 RowOrColumnMajor = tablePattern is null ? null : TryRead(() => (int)tablePattern.CurrentRowOrColumnMajor, 0),
                 RowOrColumnMajorName = tablePattern is null ? null : TryRead(() => tablePattern.CurrentRowOrColumnMajor.ToString(), string.Empty),
                 RowHeaders = tablePattern is null
-                    ? Array.Empty<UiAutomationElementReference>()
+                    ? []
                     : ReadElementReferenceArray(() => tablePattern.GetCurrentRowHeaders()),
                 ColumnHeaders = tablePattern is null
-                    ? Array.Empty<UiAutomationElementReference>()
+                    ? []
                     : ReadElementReferenceArray(() => tablePattern.GetCurrentColumnHeaders()),
                 Rows = rows,
                 ReturnedRowCount = rowLimit,
@@ -1301,10 +1301,10 @@ public static class UiAutomationBootstrap
 
             if (conditions.Count == 1)
             {
-                return automation.CreateAndConditionFromArray(conditions.ToArray());
+                return automation.CreateAndConditionFromArray([.. conditions]);
             }
 
-            return automation.CreateAndConditionFromArray(conditions.ToArray());
+            return automation.CreateAndConditionFromArray([.. conditions]);
         }
         finally
         {
@@ -1463,14 +1463,24 @@ public static class UiAutomationBootstrap
         _ => throw new ArgumentOutOfRangeException(nameof(view), view, "Unsupported cache view.")
     };
 
+    /// <summary>
+    /// Projects an element into a stable snapshot.
+    /// </summary>
+    /// <remarks>
+    /// Every read is failure-tolerant. An element reaching here may already be
+    /// gone - an event handler receives a sender that can be destroyed before the
+    /// handler runs, and a tree walk can outlive the window it is walking - so a
+    /// dead element must degrade to empty values rather than throw and take the
+    /// whole enumeration or event result with it.
+    /// </remarks>
     private static UiAutomationElementInfo ReadElementInfo(IUIAutomation automation, IUIAutomationElement element)
     {
         var runtimeId = ReadRuntimeId(element);
         var supportedPatterns = ReadSupportedPatterns(automation, element);
-        var bounds = element.CurrentBoundingRectangle;
+        var bounds = TryRead(() => element.CurrentBoundingRectangle, default);
         var legacy = ReadLegacyAccessiblePattern(element);
 
-        var name = element.CurrentName ?? string.Empty;
+        var name = TryRead(() => element.CurrentName, string.Empty) ?? string.Empty;
         var nameSource = "uia";
         if (string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(legacy?.Name))
         {
@@ -1490,7 +1500,7 @@ public static class UiAutomationBootstrap
 
         var extended = ReadExtendedElementInfo(element);
 
-        var localizedControlType = element.CurrentLocalizedControlType ?? string.Empty;
+        var localizedControlType = TryRead(() => element.CurrentLocalizedControlType, string.Empty) ?? string.Empty;
         var localizedControlTypeSource = "uia";
         if (string.IsNullOrEmpty(localizedControlType) && !string.IsNullOrEmpty(legacy?.RoleName))
         {
@@ -1501,30 +1511,30 @@ public static class UiAutomationBootstrap
         return new UiAutomationElementInfo
         {
             Name = name,
-            ClassName = element.CurrentClassName ?? string.Empty,
-            ControlType = element.CurrentControlType,
+            ClassName = TryRead(() => element.CurrentClassName, string.Empty) ?? string.Empty,
+            ControlType = TryRead(() => element.CurrentControlType, 0),
             LocalizedControlType = localizedControlType,
-            ProcessId = element.CurrentProcessId,
-            AutomationId = element.CurrentAutomationId ?? string.Empty,
-            FrameworkId = element.CurrentFrameworkId ?? string.Empty,
+            ProcessId = TryRead(() => element.CurrentProcessId, 0),
+            AutomationId = TryRead(() => element.CurrentAutomationId, string.Empty) ?? string.Empty,
+            FrameworkId = TryRead(() => element.CurrentFrameworkId, string.Empty) ?? string.Empty,
             BoundingRectangle = ToRect(bounds),
-            AcceleratorKey = element.CurrentAcceleratorKey ?? string.Empty,
-            AccessKey = element.CurrentAccessKey ?? string.Empty,
+            AcceleratorKey = TryRead(() => element.CurrentAcceleratorKey, string.Empty) ?? string.Empty,
+            AccessKey = TryRead(() => element.CurrentAccessKey, string.Empty) ?? string.Empty,
             AriaProperties = TryRead(() => element.CurrentAriaProperties, string.Empty),
             AriaRole = TryRead(() => element.CurrentAriaRole, string.Empty),
-            Culture = element.CurrentCulture,
-            HasKeyboardFocus = element.CurrentHasKeyboardFocus != 0,
-            HelpText = element.CurrentHelpText ?? string.Empty,
-            IsContentElement = element.CurrentIsContentElement != 0,
-            IsControlElement = element.CurrentIsControlElement != 0,
+            Culture = TryRead(() => element.CurrentCulture, 0),
+            HasKeyboardFocus = TryRead(() => element.CurrentHasKeyboardFocus != 0, false),
+            HelpText = TryRead(() => element.CurrentHelpText, string.Empty) ?? string.Empty,
+            IsContentElement = TryRead(() => element.CurrentIsContentElement != 0, false),
+            IsControlElement = TryRead(() => element.CurrentIsControlElement != 0, false),
             IsDataValidForForm = TryRead(() => element.CurrentIsDataValidForForm != 0, false),
-            IsEnabled = element.CurrentIsEnabled != 0,
-            IsKeyboardFocusable = element.CurrentIsKeyboardFocusable != 0,
-            IsOffscreen = element.CurrentIsOffscreen != 0,
-            IsPassword = element.CurrentIsPassword != 0,
+            IsEnabled = TryRead(() => element.CurrentIsEnabled != 0, false),
+            IsKeyboardFocusable = TryRead(() => element.CurrentIsKeyboardFocusable != 0, false),
+            IsOffscreen = TryRead(() => element.CurrentIsOffscreen != 0, false),
+            IsPassword = TryRead(() => element.CurrentIsPassword != 0, false),
             IsRequiredForForm = TryRead(() => element.CurrentIsRequiredForForm != 0, false),
-            ItemStatus = element.CurrentItemStatus ?? string.Empty,
-            ItemType = element.CurrentItemType ?? string.Empty,
+            ItemStatus = TryRead(() => element.CurrentItemStatus, string.Empty) ?? string.Empty,
+            ItemType = TryRead(() => element.CurrentItemType, string.Empty) ?? string.Empty,
             NativeWindowHandle = TryRead(() => element.CurrentNativeWindowHandle.ToInt64(), 0L),
             Orientation = TryRead(() => (int)element.CurrentOrientation, 0),
             OrientationName = TryRead(() => element.CurrentOrientation.ToString(), string.Empty),
@@ -1581,7 +1591,7 @@ public static class UiAutomationBootstrap
         }
         catch (COMException)
         {
-            return Array.Empty<int>();
+            return [];
         }
     }
 
@@ -1605,7 +1615,7 @@ public static class UiAutomationBootstrap
         if (element is IUIAutomationElement2 e2)
         {
             info.LiveSetting = TryRead<int?>(() => (int)e2.CurrentLiveSetting, null);
-            info.LiveSettingName = TryRead<string?>(() => e2.CurrentLiveSetting.ToString(), null);
+            info.LiveSettingName = TryRead(() => e2.CurrentLiveSetting.ToString(), null);
             info.OptimizeForVisualContent = TryRead<bool?>(() => e2.CurrentOptimizeForVisualContent != 0, null);
             info.FlowsFrom = ReadElementReferenceArray(() => TryRead(() => e2.CurrentFlowsFrom, null));
         }
@@ -1630,12 +1640,12 @@ public static class UiAutomationBootstrap
         if (element is IUIAutomationElement5 e5)
         {
             info.LandmarkType = TryRead<int?>(() => e5.CurrentLandmarkType, null);
-            info.LocalizedLandmarkType = TryRead<string?>(() => e5.CurrentLocalizedLandmarkType, null);
+            info.LocalizedLandmarkType = TryRead(() => e5.CurrentLocalizedLandmarkType, null);
         }
 
         if (element is IUIAutomationElement6 e6)
         {
-            info.FullDescription = TryRead<string?>(() => e6.CurrentFullDescription, null);
+            info.FullDescription = TryRead(() => e6.CurrentFullDescription, null);
         }
 
         if (element is IUIAutomationElement8 e8)
@@ -1678,7 +1688,7 @@ public static class UiAutomationBootstrap
         public int? LiveSetting { get; set; }
         public string? LiveSettingName { get; set; }
         public bool? OptimizeForVisualContent { get; set; }
-        public IReadOnlyList<UiAutomationElementReference> FlowsFrom { get; set; } = Array.Empty<UiAutomationElementReference>();
+        public IReadOnlyList<UiAutomationElementReference> FlowsFrom { get; set; } = [];
     }
 
     private static UiAutomationPatternInfo[] ReadSupportedPatterns(IUIAutomation automation, IUIAutomationElement element)
@@ -1686,16 +1696,20 @@ public static class UiAutomationBootstrap
         try
         {
             automation.PollForPotentialSupportedPatterns(element, out var patternIds, out _);
-            var ids = patternIds as int[] ?? Array.Empty<int>();
-            return ids.Select(id => new UiAutomationPatternInfo
-            {
-                Id = id,
-                ProgrammaticName = PatternNames.TryGetValue(id, out var name) ? name : $"Pattern:{id}"
-            }).ToArray();
+            var ids = patternIds as int[] ?? [];
+            return [.. ids
+                // Providers occasionally report a 0 id, which is not a pattern.
+                // Passing it through would emit a meaningless "Pattern:0" entry.
+                .Where(id => id > 0)
+                .Select(id => new UiAutomationPatternInfo
+                {
+                    Id = id,
+                    ProgrammaticName = PatternNames.TryGetValue(id, out var name) ? name : $"Pattern:{id}"
+                })];
         }
         catch (COMException)
         {
-            return Array.Empty<UiAutomationPatternInfo>();
+            return [];
         }
     }
 
@@ -1880,15 +1894,13 @@ public static class UiAutomationBootstrap
         try
         {
             var currentView = pattern.CurrentCurrentView;
-            var supportedViews = TryRead(() => pattern.GetCurrentSupportedViews(), Array.Empty<int>()) ?? Array.Empty<int>();
+            var supportedViews = TryRead(() => pattern.GetCurrentSupportedViews(), []) ?? [];
 
             return new UiAutomationMultipleViewPatternState
             {
                 CurrentView = currentView,
                 CurrentViewName = ReadViewName(pattern, currentView),
-                SupportedViews = supportedViews
-                    .Select(id => new UiAutomationViewInfo { Id = id, Name = ReadViewName(pattern, id) })
-                    .ToArray()
+                SupportedViews = [.. supportedViews.Select(id => new UiAutomationViewInfo { Id = id, Name = ReadViewName(pattern, id) })]
             };
         }
         finally
@@ -2309,8 +2321,7 @@ public static class UiAutomationBootstrap
         IUIAutomationTextRange? line = null;
         try
         {
-            var isActive = 0;
-            caret = pattern.GetCaretRange(out isActive);
+            caret = pattern.GetCaretRange(out int isActive);
             if (caret is null)
             {
                 return null;
@@ -2486,8 +2497,8 @@ public static class UiAutomationBootstrap
 
         try
         {
-            container = TryRead<IUIAutomationElement?>(() => pattern.TextContainer, null);
-            range = TryRead<IUIAutomationTextRange?>(() => pattern.TextRange, null);
+            container = TryRead(() => pattern.TextContainer, null);
+            range = TryRead(() => pattern.TextRange, null);
 
             var offset = -1;
             if (container is not null && range is not null)
@@ -2495,7 +2506,7 @@ public static class UiAutomationBootstrap
                 containerText = GetPattern<IUIAutomationTextPattern>(container, UIA_PatternIds.UIA_TextPatternId);
                 if (containerText is not null)
                 {
-                    containerRange = TryRead<IUIAutomationTextRange?>(() => containerText.DocumentRange, null);
+                    containerRange = TryRead(() => containerText.DocumentRange, null);
                     offset = ComputeOffset(containerRange, range);
                 }
             }
@@ -2544,7 +2555,7 @@ public static class UiAutomationBootstrap
                 return new UiAutomationTextFindResult { Found = false, Needle = needle };
             }
 
-            var text = TryRead<string?>(() => match.GetText(-1), null);
+            var text = TryRead(() => match.GetText(-1), null);
             return new UiAutomationTextFindResult
             {
                 Found = true,
@@ -2555,8 +2566,13 @@ public static class UiAutomationBootstrap
                 BoundingRectangles = ReadBoundingRectangles(match)
             };
         }
-        catch (COMException)
+        catch (Exception ex) when (ex is COMException or NotSupportedException)
         {
+            // Advertising the Text pattern does not oblige a provider to implement
+            // FindText; several bridged and custom providers raise E_NOTIMPL, which
+            // surfaces here as NotSupportedException rather than COMException.
+            // A search that cannot run is reported as a miss, not as a crash that
+            // takes the whole text read with it.
             return new UiAutomationTextFindResult { Found = false, Needle = needle };
         }
         finally
@@ -2569,13 +2585,13 @@ public static class UiAutomationBootstrap
     /// Reads a range's screen rectangles. A range that wraps across lines reports
     /// one rectangle per line; an off-screen range reports none.
     /// </summary>
-    private static IReadOnlyList<UiAutomationRect> ReadBoundingRectangles(IUIAutomationTextRange range)
+    private static List<UiAutomationRect> ReadBoundingRectangles(IUIAutomationTextRange range)
     {
         try
         {
             if (range.GetBoundingRectangles() is not double[] values || values.Length < 4)
             {
-                return Array.Empty<UiAutomationRect>();
+                return [];
             }
 
             // The provider returns a flat [left, top, width, height, ...] array.
@@ -2595,7 +2611,7 @@ public static class UiAutomationBootstrap
         }
         catch (COMException)
         {
-            return Array.Empty<UiAutomationRect>();
+            return [];
         }
     }
 
@@ -2669,9 +2685,22 @@ public static class UiAutomationBootstrap
 
             if (!string.IsNullOrEmpty(needle))
             {
-                var match = documentRange.FindText(needle, 0, 1)
-                    ?? throw new InvalidOperationException($"The text \"{needle}\" was not found in this element.");
-                return match;
+                IUIAutomationTextRange? match;
+                try
+                {
+                    match = documentRange.FindText(needle, 0, 1);
+                }
+                catch (Exception ex) when (ex is COMException or NotSupportedException)
+                {
+                    // Advertising Text does not oblige a provider to implement
+                    // FindText. Say so, rather than letting E_NOTIMPL surface as
+                    // "Specified method is not supported".
+                    throw new InvalidOperationException(
+                        "This provider supports the Text pattern but not text search. "
+                        + "Address the range with --int <startOffset> and --number <length> instead.");
+                }
+
+                return match ?? throw new InvalidOperationException($"The text \"{needle}\" was not found in this element.");
             }
 
             if (startOffset is null)
@@ -2759,8 +2788,8 @@ public static class UiAutomationBootstrap
         IUIAutomationTextRange? conversion = null;
         try
         {
-            composition = TryRead<IUIAutomationTextRange?>(() => pattern.GetActiveComposition(), null);
-            conversion = TryRead<IUIAutomationTextRange?>(() => pattern.GetConversionTarget(), null);
+            composition = TryRead(() => pattern.GetActiveComposition(), null);
+            conversion = TryRead(() => pattern.GetConversionTarget(), null);
 
             return new UiAutomationTextEditInfo
             {
@@ -2797,11 +2826,11 @@ public static class UiAutomationBootstrap
             : null;
     }
 
-    private static IReadOnlyList<UiAutomationElementInfo> ReadElementArray(IUIAutomation automation, IUIAutomationElementArray? elements)
+    private static List<UiAutomationElementInfo> ReadElementArray(IUIAutomation automation, IUIAutomationElementArray? elements)
     {
         if (elements is null)
         {
-            return Array.Empty<UiAutomationElementInfo>();
+            return [];
         }
 
         var result = new List<UiAutomationElementInfo>(elements.Length);
@@ -2858,7 +2887,7 @@ public static class UiAutomationBootstrap
         }
     }
 
-    private static IReadOnlyList<UiAutomationElementReference> ReadElementReferenceArray(Func<IUIAutomationElementArray?> getter)
+    private static List<UiAutomationElementReference> ReadElementReferenceArray(Func<IUIAutomationElementArray?> getter)
     {
         IUIAutomationElementArray? array = null;
         try
@@ -2866,7 +2895,7 @@ public static class UiAutomationBootstrap
             array = getter();
             if (array is null)
             {
-                return Array.Empty<UiAutomationElementReference>();
+                return [];
             }
 
             var results = new List<UiAutomationElementReference>(array.Length);
@@ -2895,7 +2924,7 @@ public static class UiAutomationBootstrap
         }
         catch (COMException)
         {
-            return Array.Empty<UiAutomationElementReference>();
+            return [];
         }
         finally
         {
@@ -2911,7 +2940,7 @@ public static class UiAutomationBootstrap
         ControlType = TryRead(() => element.CurrentControlType, 0),
         LocalizedControlType = TryRead(() => element.CurrentLocalizedControlType, string.Empty) ?? string.Empty,
         RuntimeId = ReadRuntimeId(element),
-        BoundingRectangle = TryRead<UiAutomationRect?>(() => ToRect(element.CurrentBoundingRectangle), null)
+        BoundingRectangle = TryRead(() => ToRect(element.CurrentBoundingRectangle), null)
     };
 
     private static TPattern? GetPattern<TPattern>(IUIAutomationElement element, int patternId)
@@ -3273,7 +3302,7 @@ public static class UiAutomationBootstrap
 
         try
         {
-            var supportedViews = TryRead(() => pattern.GetCurrentSupportedViews(), Array.Empty<int>()) ?? Array.Empty<int>();
+            var supportedViews = TryRead(() => pattern.GetCurrentSupportedViews(), []) ?? [];
             var resolved = ResolveViewId(pattern, supportedViews, view, viewId);
             pattern.SetCurrentView(resolved);
             return $"View changed to {resolved} ({ReadViewName(pattern, resolved)}).";
@@ -3382,13 +3411,33 @@ public static class UiAutomationBootstrap
         Bottom = rect.bottom
     };
 
+    /// <summary>
+    /// Reads an optional property, falling back rather than throwing.
+    /// </summary>
+    /// <remarks>
+    /// The catch list is deliberately wider than <see cref="COMException"/>.
+    /// A provider that does not implement a property raises E_NOTIMPL, which the
+    /// runtime callable wrapper surfaces as <see cref="NotSupportedException"/>
+    /// rather than as a COM exception; an element destroyed between acquisition
+    /// and read can produce <see cref="InvalidCastException"/> from the marshaller;
+    /// and a released proxy produces
+    /// <see cref="InvalidComObjectException"/>.
+    ///
+    /// All three mean the same thing to a caller - this value is unavailable -
+    /// and none should abort the surrounding read. An event handler in particular
+    /// receives a sender that may already be gone by the time it runs.
+    /// </remarks>
     private static TValue TryRead<TValue>(Func<TValue> getter, TValue fallback)
     {
         try
         {
             return getter();
         }
-        catch (COMException)
+        catch (Exception ex) when (ex is COMException
+                                      or NotSupportedException
+                                      or InvalidComObjectException
+                                      or InvalidCastException
+                                      or UnauthorizedAccessException)
         {
             return fallback;
         }
@@ -3412,70 +3461,60 @@ public static class UiAutomationBootstrap
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class FocusChangedEventHandler : IUIAutomationFocusChangedEventHandler, IDisposable
+    private sealed class FocusChangedEventHandler : OneShotEventHandler, IUIAutomationFocusChangedEventHandler
     {
-        private IUIAutomationElement? sender;
-
-        public AutoResetEvent WaitHandle { get; } = new(false);
 
         public void HandleFocusChangedEvent(IUIAutomationElement sender)
         {
-            if (this.sender is null)
+            if (!TryCapture(sender))
             {
-                this.sender = sender;
-                WaitHandle.Set();
                 return;
             }
 
-            FinalRelease(sender);
+            WaitHandle.Set();
         }
 
         public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
         {
+            var captured = TakeSender();
             try
             {
                 return new UiAutomationEventResult
                 {
                     EventKind = "focus",
                     TimedOut = timedOut,
-                    SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
+                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
                 };
             }
             finally
             {
-                FinalRelease(sender);
-                sender = null;
+                FinalRelease(captured);
             }
         }
 
-        public void Dispose() => WaitHandle.Dispose();
     }
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class AutomationEventHandler : IUIAutomationEventHandler, IDisposable
+    private sealed class AutomationEventHandler : OneShotEventHandler, IUIAutomationEventHandler
     {
-        private IUIAutomationElement? sender;
-
-        public AutoResetEvent WaitHandle { get; } = new(false);
 
         public int? EventId { get; private set; }
 
         public void HandleAutomationEvent(IUIAutomationElement sender, int eventId)
         {
-            if (this.sender is null)
+            if (!TryCapture(sender))
             {
-                this.sender = sender;
-                EventId = eventId;
-                WaitHandle.Set();
                 return;
             }
 
-            FinalRelease(sender);
+            EventId = eventId;
+            WaitHandle.Set();
         }
 
         public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
         {
+            var captured = TakeSender();
             try
             {
                 return new UiAutomationEventResult
@@ -3484,26 +3523,21 @@ public static class UiAutomationBootstrap
                     TimedOut = timedOut,
                     EventId = EventId,
                     EventName = EventId is null ? null : UiaEventName(EventId.Value),
-                    SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
+                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
                 };
             }
             finally
             {
-                FinalRelease(sender);
-                sender = null;
+                FinalRelease(captured);
             }
         }
 
-        public void Dispose() => WaitHandle.Dispose();
     }
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class TextEditEventHandler : IUIAutomationTextEditTextChangedEventHandler, IDisposable
+    private sealed class TextEditEventHandler : OneShotEventHandler, IUIAutomationTextEditTextChangedEventHandler
     {
-        private IUIAutomationElement? sender;
-
-        public AutoResetEvent WaitHandle { get; } = new(false);
 
         public TextEditChangeType ChangeType { get; private set; }
 
@@ -3511,20 +3545,19 @@ public static class UiAutomationBootstrap
 
         public void HandleTextEditTextChangedEvent(IUIAutomationElement sender, TextEditChangeType textEditChangeType, string[] eventStrings)
         {
-            if (this.sender is null)
+            if (!TryCapture(sender))
             {
-                this.sender = sender;
-                ChangeType = textEditChangeType;
-                EventStrings = eventStrings ?? [];
-                WaitHandle.Set();
                 return;
             }
 
-            FinalRelease(sender);
+            ChangeType = textEditChangeType;
+            EventStrings = eventStrings ?? [];
+            WaitHandle.Set();
         }
 
         public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
         {
+            var captured = TakeSender();
             try
             {
                 return new UiAutomationEventResult
@@ -3534,26 +3567,21 @@ public static class UiAutomationBootstrap
                     TextEditChangeType = (int)ChangeType,
                     TextEditChangeTypeName = ChangeType.ToString(),
                     EventStrings = EventStrings,
-                    SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
+                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
                 };
             }
             finally
             {
-                FinalRelease(sender);
-                sender = null;
+                FinalRelease(captured);
             }
         }
 
-        public void Dispose() => WaitHandle.Dispose();
     }
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class NotificationEventHandler : IUIAutomationNotificationEventHandler, IDisposable
+    private sealed class NotificationEventHandler : OneShotEventHandler, IUIAutomationNotificationEventHandler
     {
-        private IUIAutomationElement? sender;
-
-        public AutoResetEvent WaitHandle { get; } = new(false);
 
         public NotificationKind Kind { get; private set; }
 
@@ -3570,28 +3598,27 @@ public static class UiAutomationBootstrap
             string displayString,
             string activityId)
         {
-            if (this.sender is null)
+            if (!TryCapture(sender))
             {
-                this.sender = sender;
-                Kind = notificationKind;
-                Processing = notificationProcessing;
-                DisplayString = displayString ?? string.Empty;
-                ActivityId = activityId ?? string.Empty;
-                WaitHandle.Set();
                 return;
             }
 
-            FinalRelease(sender);
+            Kind = notificationKind;
+            Processing = notificationProcessing;
+            DisplayString = displayString ?? string.Empty;
+            ActivityId = activityId ?? string.Empty;
+            WaitHandle.Set();
         }
 
         public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
         {
+            var captured = TakeSender();
             try
             {
                 // Nothing arrived, so report no payload rather than the zero values
                 // of the enums - NotificationKind 0 is ItemAdded, which would read as
                 // a real notification that never happened.
-                if (sender is null)
+                if (captured is null)
                 {
                     return new UiAutomationEventResult
                     {
@@ -3610,26 +3637,21 @@ public static class UiAutomationBootstrap
                     NotificationProcessingName = Processing.ToString(),
                     DisplayString = DisplayString,
                     ActivityId = ActivityId,
-                    SourceElement = ReadElementInfo(automation, sender)
+                    SourceElement = ReadElementInfo(automation, captured!)
                 };
             }
             finally
             {
-                FinalRelease(sender);
-                sender = null;
+                FinalRelease(captured);
             }
         }
 
-        public void Dispose() => WaitHandle.Dispose();
     }
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class ChangesEventHandler : IUIAutomationChangesEventHandler, IDisposable
+    private sealed class ChangesEventHandler : OneShotEventHandler, IUIAutomationChangesEventHandler
     {
-        private IUIAutomationElement? sender;
-
-        public AutoResetEvent WaitHandle { get; } = new(false);
 
         public int ChangeId { get; private set; }
 
@@ -3639,28 +3661,27 @@ public static class UiAutomationBootstrap
 
         public void HandleChangesEvent(IUIAutomationElement sender, ref UiaChangeInfo uiaChanges, int changesCount)
         {
-            if (this.sender is null)
+            if (!TryCapture(sender))
             {
-                this.sender = sender;
-                // The interop signature is `ref UiaChangeInfo` plus a count rather than
-                // an array, so only the first entry is reachable without unsafe pointer
-                // arithmetic. changesCount is reported so a caller can tell that more
-                // changes were coalesced into the same notification.
-                ChangeId = uiaChanges.uiaId;
-                Payload = uiaChanges.payload?.ToString();
-                ChangeCount = changesCount;
-                WaitHandle.Set();
                 return;
             }
 
-            FinalRelease(sender);
+            // The interop signature is `ref UiaChangeInfo` plus a count rather than
+            // an array, so only the first entry is reachable without unsafe pointer
+            // arithmetic. changesCount is reported so a caller can tell that more
+            // changes were coalesced into the same notification.
+            ChangeId = uiaChanges.uiaId;
+            Payload = uiaChanges.payload?.ToString();
+            ChangeCount = changesCount;
+            WaitHandle.Set();
         }
 
         public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
         {
+            var captured = TakeSender();
             try
             {
-                if (sender is null)
+                if (captured is null)
                 {
                     return new UiAutomationEventResult { EventKind = "changes", TimedOut = timedOut };
                 }
@@ -3672,26 +3693,21 @@ public static class UiAutomationBootstrap
                     ChangeId = ChangeId,
                     ChangePayload = Payload,
                     ChangeCount = ChangeCount,
-                    SourceElement = ReadElementInfo(automation, sender)
+                    SourceElement = ReadElementInfo(automation, captured!)
                 };
             }
             finally
             {
-                FinalRelease(sender);
-                sender = null;
+                FinalRelease(captured);
             }
         }
 
-        public void Dispose() => WaitHandle.Dispose();
     }
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class ActiveTextPositionEventHandler : IUIAutomationActiveTextPositionChangedEventHandler, IDisposable
+    private sealed class ActiveTextPositionEventHandler : OneShotEventHandler, IUIAutomationActiveTextPositionChangedEventHandler
     {
-        private IUIAutomationElement? sender;
-
-        public AutoResetEvent WaitHandle { get; } = new(false);
 
         public string? RangeText { get; private set; }
 
@@ -3699,24 +3715,22 @@ public static class UiAutomationBootstrap
 
         public void HandleActiveTextPositionChangedEvent(IUIAutomationElement sender, IUIAutomationTextRange range)
         {
-            if (this.sender is null)
+            if (!TryCapture(sender))
             {
-                this.sender = sender;
-                try
-                {
-                    RangeText = TryRead<string?>(() => range?.GetText(-1), null);
-                    RangeOffset = ComputeRangeOffset(sender, range);
-                }
-                finally
-                {
-                    FinalRelease(range);
-                }
-
-                WaitHandle.Set();
                 return;
             }
 
-            FinalRelease(sender);
+            try
+            {
+                RangeText = TryRead(() => range?.GetText(-1), null);
+                RangeOffset = ComputeRangeOffset(sender, range);
+            }
+            finally
+            {
+                FinalRelease(range);
+            }
+
+            WaitHandle.Set();
             FinalRelease(range);
         }
 
@@ -3753,9 +3767,10 @@ public static class UiAutomationBootstrap
 
         public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
         {
+            var captured = TakeSender();
             try
             {
-                if (sender is null)
+                if (captured is null)
                 {
                     return new UiAutomationEventResult { EventKind = "active-text-position", TimedOut = timedOut };
                 }
@@ -3766,26 +3781,21 @@ public static class UiAutomationBootstrap
                     TimedOut = timedOut,
                     TextRangeText = RangeText,
                     TextRangeOffset = RangeOffset,
-                    SourceElement = ReadElementInfo(automation, sender)
+                    SourceElement = ReadElementInfo(automation, captured!)
                 };
             }
             finally
             {
-                FinalRelease(sender);
-                sender = null;
+                FinalRelease(captured);
             }
         }
 
-        public void Dispose() => WaitHandle.Dispose();
     }
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class PropertyChangedEventHandler : IUIAutomationPropertyChangedEventHandler, IDisposable
+    private sealed class PropertyChangedEventHandler : OneShotEventHandler, IUIAutomationPropertyChangedEventHandler
     {
-        private IUIAutomationElement? sender;
-
-        public AutoResetEvent WaitHandle { get; } = new(false);
 
         public int? PropertyId { get; private set; }
 
@@ -3793,20 +3803,19 @@ public static class UiAutomationBootstrap
 
         public void HandlePropertyChangedEvent(IUIAutomationElement sender, int propertyId, object newValue)
         {
-            if (this.sender is null)
+            if (!TryCapture(sender))
             {
-                this.sender = sender;
-                PropertyId = propertyId;
-                Value = newValue;
-                WaitHandle.Set();
                 return;
             }
 
-            FinalRelease(sender);
+            PropertyId = propertyId;
+            Value = newValue;
+            WaitHandle.Set();
         }
 
         public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
         {
+            var captured = TakeSender();
             try
             {
                 return new UiAutomationEventResult
@@ -3815,26 +3824,68 @@ public static class UiAutomationBootstrap
                     TimedOut = timedOut,
                     PropertyId = PropertyId,
                     Value = Value,
-                    SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
+                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
                 };
             }
             finally
             {
-                FinalRelease(sender);
-                sender = null;
+                FinalRelease(captured);
             }
         }
 
-        public void Dispose() => WaitHandle.Dispose();
+    }
+
+    /// <summary>
+    /// Shared state for the one-shot event handlers.
+    /// </summary>
+    /// <remarks>
+    /// The handler callback runs on a UI Automation thread while
+    /// <c>ToResult</c> runs on this call's STA thread, so the captured sender is
+    /// touched by two threads. Guarding it matters: structure-changed events on a
+    /// busy desktop arrive in bursts, and an unsynchronised
+    /// check-then-use produced an intermittent NullReferenceException that took
+    /// the whole wait down.
+    ///
+    /// The exchange is lock-free and "first event wins": a later callback loses
+    /// the race and releases its own sender rather than overwriting the captured
+    /// one, and <c>TakeSender</c> hands ownership to the reader exactly once.
+    /// </remarks>
+    private abstract class OneShotEventHandler : IDisposable
+    {
+        private IUIAutomationElement? sender;
+
+        /// <summary>Signalled once the first matching event has been captured.</summary>
+        public AutoResetEvent WaitHandle { get; } = new(false);
+
+        /// <summary>
+        /// Records the first sender seen. Returns true when the caller won and
+        /// should populate the payload; false when it must release its sender.
+        /// </summary>
+        protected bool TryCapture(IUIAutomationElement candidate)
+        {
+            if (Interlocked.CompareExchange(ref sender, candidate, null) is null)
+            {
+                return true;
+            }
+
+            FinalRelease(candidate);
+            return false;
+        }
+
+        /// <summary>Takes ownership of the captured sender, leaving none behind.</summary>
+        protected IUIAutomationElement? TakeSender() => Interlocked.Exchange(ref sender, null);
+
+        public void Dispose()
+        {
+            FinalRelease(TakeSender());
+            WaitHandle.Dispose();
+        }
     }
 
     [ComVisible(true)]
     [ClassInterface(ClassInterfaceType.None)]
-    private sealed class StructureChangedEventHandler : IUIAutomationStructureChangedEventHandler, IDisposable
+    private sealed class StructureChangedEventHandler : OneShotEventHandler, IUIAutomationStructureChangedEventHandler
     {
-        private IUIAutomationElement? sender;
-
-        public AutoResetEvent WaitHandle { get; } = new(false);
 
         public StructureChangeType? StructureChangeType { get; private set; }
 
@@ -3842,20 +3893,19 @@ public static class UiAutomationBootstrap
 
         public void HandleStructureChangedEvent(IUIAutomationElement sender, StructureChangeType changeType, int[] runtimeId)
         {
-            if (this.sender is null)
+            if (!TryCapture(sender))
             {
-                this.sender = sender;
-                StructureChangeType = changeType;
-                RuntimeId = runtimeId;
-                WaitHandle.Set();
                 return;
             }
 
-            FinalRelease(sender);
+            StructureChangeType = changeType;
+            RuntimeId = runtimeId;
+            WaitHandle.Set();
         }
 
         public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
         {
+            var captured = TakeSender();
             try
             {
                 return new UiAutomationEventResult
@@ -3865,16 +3915,14 @@ public static class UiAutomationBootstrap
                     StructureChangeType = (int?)StructureChangeType,
                     StructureChangeTypeName = StructureChangeType?.ToString(),
                     Value = RuntimeId,
-                    SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
+                    SourceElement = captured is null ? null : ReadElementInfo(automation, captured)
                 };
             }
             finally
             {
-                FinalRelease(sender);
-                sender = null;
+                FinalRelease(captured);
             }
         }
 
-        public void Dispose() => WaitHandle.Dispose();
     }
 }

@@ -63,9 +63,9 @@ public sealed class UiAutomationElementInfo
 
     public string ProviderDescription { get; init; } = string.Empty;
 
-    public IReadOnlyList<int> RuntimeId { get; init; } = Array.Empty<int>();
+    public IReadOnlyList<int> RuntimeId { get; init; } = [];
 
-    public IReadOnlyList<UiAutomationPatternInfo> SupportedPatterns { get; init; } = Array.Empty<UiAutomationPatternInfo>();
+    public IReadOnlyList<UiAutomationPatternInfo> SupportedPatterns { get; init; } = [];
 
     public UiAutomationValuePatternState? ValuePattern { get; init; }
 
@@ -114,16 +114,16 @@ public sealed class UiAutomationElementInfo
     /// Elements whose state or content this element affects - a filter combo that
     /// drives a results list names that list here.
     /// </summary>
-    public IReadOnlyList<UiAutomationElementReference> ControllerFor { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> ControllerFor { get; init; } = [];
 
     /// <summary>Elements that describe this one, the UIA counterpart of aria-describedby.</summary>
-    public IReadOnlyList<UiAutomationElementReference> DescribedBy { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> DescribedBy { get; init; } = [];
 
     /// <summary>Elements that follow this one in reading order, where the provider defines one.</summary>
-    public IReadOnlyList<UiAutomationElementReference> FlowsTo { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> FlowsTo { get; init; } = [];
 
     /// <summary>Elements that precede this one in reading order. Requires IUIAutomationElement2.</summary>
-    public IReadOnlyList<UiAutomationElementReference> FlowsFrom { get; init; } = Array.Empty<UiAutomationElementReference>();
+    public IReadOnlyList<UiAutomationElementReference> FlowsFrom { get; init; } = [];
 
     // Properties below live on IUIAutomationElement2..9 rather than the base
     // interface. Each is null when the running Windows build does not expose the

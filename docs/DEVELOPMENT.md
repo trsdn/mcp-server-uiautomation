@@ -15,6 +15,7 @@ The active solution is `UIAutomationMcp.sln`.
 
 ```powershell
 dotnet build UIAutomationMcp.sln
+dotnet test UIAutomationMcp.sln
 dotnet run --project src\UIAutomationMcp.Smoke\UIAutomationMcp.Smoke.csproj
 dotnet run --project src\UIAutomationMcp.CLI\UIAutomationMcp.CLI.csproj -- desktop
 ```

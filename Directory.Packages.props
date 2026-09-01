@@ -12,6 +12,13 @@
     <PackageVersion Include="ModelContextProtocol" Version="0.9.0-preview.2" />
   </ItemGroup>
 
+  <!-- Test project only. -->
+  <ItemGroup>
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
+  </ItemGroup>
+
   <!--
     Transitive pins. No project references these by name; they are pulled in by
     Microsoft.Extensions.Hosting and ModelContextProtocol, and are pinned here
