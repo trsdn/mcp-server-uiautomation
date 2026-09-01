@@ -330,8 +330,63 @@ Verified against the Windows 11 taskbar, whose task-list buttons expose the Drag
 with populated `grabbedItems`, and against File Explorer's list view, which exposes
 DropTarget.
 
-### Element references in pattern state
+### Element relationships and extended interface levels
 
+Two groups of element properties sit outside the flat metadata block.
+
+**Relationships** come from the base `IUIAutomationElement` and point at other
+elements: `labeledBy`, `controllerFor`, `describedBy`, `flowsTo`, plus
+`flowsFrom` from `IUIAutomationElement2`. They use the flat element *reference*
+shape described below rather than full element info, for the same
+non-termination reason.
+
+`labeledBy` is the one that changes what is addressable. Win32 and WinForms
+inputs frequently carry no name of their own, and the label beside them is a
+separate element. Name resolution therefore has three tiers, reported through
+`nameSource`:
+
+| `nameSource` | Meaning |
+| --- | --- |
+| `uia` | the provider supplied a native name |
+| `legacy` | the native name was empty; the MSAA bridge supplied one |
+| `labeledBy` | both were empty; the labelling element supplied one |
+
+Verified against the live desktop: of 400 scanned elements, 4 reported
+`labeledBy` and 16 reported `controllerFor`.
+
+**Extended properties** live on `IUIAutomationElement2` through
+`IUIAutomationElement9`. `CreateAutomation()` activates `CUIAutomation8Class`,
+so these are reachable, but each level is cast independently and failures
+degrade to `null` — the same soft-cast approach `WaitForEvent` already uses for
+`IUIAutomation3`. A build that exposes Element4 but not Element9 still yields
+everything it has, and `null` means "this OS cannot answer" rather than "the
+provider said zero".
+
+| Property | Interface |
+| --- | --- |
+| `liveSetting` / `liveSettingName`, `optimizeForVisualContent`, `flowsFrom` | Element2 |
+| `isPeripheral` | Element3 |
+| `positionInSet`, `sizeOfSet`, `level`, `annotationTypes` | Element4 |
+| `landmarkType`, `localizedLandmarkType` | Element5 |
+| `fullDescription` | Element6 |
+| `headingLevel` | Element8 |
+| `isDialog` | Element9 |
+
+Two of these need care:
+
+- **`fullDescription` is often where the meaning is.** WinUI, UWP and Edge
+  frequently leave `name` terse and put the real accessible description here.
+  An element that looks anonymous is worth re-checking against this field.
+- **`headingLevel` is normalized.** UIA reports `HeadingLevel_None` as 80050 and
+  headings as 80051–80059, so a raw passthrough would stamp a meaningless
+  five-digit constant on every element in a tree. It is projected to the
+  ordinary 1–9, and `null` for "not a heading".
+
+`annotationTypes` here is *element-level* and is distinct from the format-run
+annotation walk performed by the `text` command, which describes runs of text
+rather than the element itself.
+
+### Element references in pattern state
 Pattern state that points at other elements — a cell's containing grid, a table's
 headers — uses a flat element *reference* (name, class, automation id, control type,
 runtime id, bounds) rather than full element info. This is deliberate: a column

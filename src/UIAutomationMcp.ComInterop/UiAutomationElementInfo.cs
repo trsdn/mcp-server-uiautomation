@@ -102,8 +102,83 @@ public sealed class UiAutomationElementInfo
     public UiAutomationLegacyAccessiblePatternState? LegacyAccessiblePattern { get; init; }
 
     /// <summary>
+    /// The element that labels this one, typically the static text beside an input
+    /// control. Without it a form of edit boxes reads as a set of anonymous
+    /// <c>Edit</c> elements with no way to tell them apart but their geometry.
+    /// </summary>
+    public UiAutomationElementReference? LabeledBy { get; init; }
+
+    /// <summary>
+    /// Elements whose state or content this element affects - a filter combo that
+    /// drives a results list names that list here.
+    /// </summary>
+    public IReadOnlyList<UiAutomationElementReference> ControllerFor { get; init; } = Array.Empty<UiAutomationElementReference>();
+
+    /// <summary>Elements that describe this one, the UIA counterpart of aria-describedby.</summary>
+    public IReadOnlyList<UiAutomationElementReference> DescribedBy { get; init; } = Array.Empty<UiAutomationElementReference>();
+
+    /// <summary>Elements that follow this one in reading order, where the provider defines one.</summary>
+    public IReadOnlyList<UiAutomationElementReference> FlowsTo { get; init; } = Array.Empty<UiAutomationElementReference>();
+
+    /// <summary>Elements that precede this one in reading order. Requires IUIAutomationElement2.</summary>
+    public IReadOnlyList<UiAutomationElementReference> FlowsFrom { get; init; } = Array.Empty<UiAutomationElementReference>();
+
+    // Properties below live on IUIAutomationElement2..9 rather than the base
+    // interface. Each is null when the running Windows build does not expose the
+    // interface level that carries it, so a caller can tell "provider said no"
+    // from "this OS cannot answer". See docs/UIAUTOMATION-COM-REFERENCE.md.
+
+    /// <summary>
+    /// The provider's full accessible description. WinUI, UWP and Edge frequently
+    /// leave <see cref="Name"/> terse and put the meaningful text here.
+    /// Requires IUIAutomationElement6.
+    /// </summary>
+    public string? FullDescription { get; init; }
+
+    /// <summary>1-based position within its set of siblings. Requires IUIAutomationElement4.</summary>
+    public int? PositionInSet { get; init; }
+
+    /// <summary>Size of the set this element belongs to. Requires IUIAutomationElement4.</summary>
+    public int? SizeOfSet { get; init; }
+
+    /// <summary>Nesting depth within a tree or list. Requires IUIAutomationElement4.</summary>
+    public int? Level { get; init; }
+
+    /// <summary>Annotation type ids applied to the element itself. Requires IUIAutomationElement4.</summary>
+    public IReadOnlyList<int>? AnnotationTypes { get; init; }
+
+    /// <summary>Landmark type id. Requires IUIAutomationElement5.</summary>
+    public int? LandmarkType { get; init; }
+
+    /// <summary>Provider-supplied landmark name, and therefore localized. Requires IUIAutomationElement5.</summary>
+    public string? LocalizedLandmarkType { get; init; }
+
+    /// <summary>
+    /// Heading level 1-9, or null when the element is not a heading. UIA reports
+    /// this as HeadingLevel_None (80050) through HeadingLevel9 (80059); the raw
+    /// constant is normalized here. Requires IUIAutomationElement8.
+    /// </summary>
+    public int? HeadingLevel { get; init; }
+
+    /// <summary>Whether the element is a dialog. Requires IUIAutomationElement9.</summary>
+    public bool? IsDialog { get; init; }
+
+    /// <summary>Whether the element is peripheral UI such as a tooltip or flyout. Requires IUIAutomationElement3.</summary>
+    public bool? IsPeripheral { get; init; }
+
+    /// <summary>Politeness of a live region: 0 off, 1 polite, 2 assertive. Requires IUIAutomationElement2.</summary>
+    public int? LiveSetting { get; init; }
+
+    /// <summary>Readable form of <see cref="LiveSetting"/>.</summary>
+    public string? LiveSettingName { get; init; }
+
+    /// <summary>Whether the provider is optimized for visual content. Requires IUIAutomationElement2.</summary>
+    public bool? OptimizeForVisualContent { get; init; }
+
+    /// <summary>
     /// Where <see cref="Name"/> came from: <c>uia</c> for a native UI Automation name,
-    /// <c>legacy</c> when the native name was empty and the MSAA bridge supplied one.
+    /// <c>legacy</c> when the native name was empty and the MSAA bridge supplied one,
+    /// <c>labeledBy</c> when both were empty and the labelling element supplied one.
     /// </summary>
     public string NameSource { get; init; } = "uia";
 

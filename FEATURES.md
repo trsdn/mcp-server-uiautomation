@@ -12,6 +12,8 @@
 - desktop root probe
 - focused element probe
 - rich element metadata projection
+- element relationship properties (`labeledBy`, `controllerFor`, `describedBy`, `flowsTo`, `flowsFrom`), with `labeledBy` acting as a third name-resolution tier after the MSAA bridge
+- extended element properties from `IUIAutomationElement2..9` (`fullDescription`, `positionInSet`, `sizeOfSet`, `level`, `landmarkType`, `headingLevel`, `isDialog`, `isPeripheral`, `liveSetting`, `annotationTypes`), soft-cast per interface level so an older Windows build degrades to `null` instead of failing
 - element lookup from native window handle
 - element lookup from screen point
 - search by name

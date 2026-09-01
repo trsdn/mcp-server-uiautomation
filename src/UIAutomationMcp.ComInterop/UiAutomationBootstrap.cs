@@ -1357,6 +1357,18 @@ public static class UiAutomationBootstrap
             nameSource = "legacy";
         }
 
+        // A labelling element is the last resort, and only when neither the native
+        // name nor the MSAA bridge produced one. Win32 and WinForms inputs routinely
+        // carry no name of their own and are identifiable only through their label.
+        var labeledBy = ReadElementReference(() => TryRead(() => element.CurrentLabeledBy, null));
+        if (string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(labeledBy?.Name))
+        {
+            name = labeledBy!.Name;
+            nameSource = "labeledBy";
+        }
+
+        var extended = ReadExtendedElementInfo(element);
+
         var localizedControlType = element.CurrentLocalizedControlType ?? string.Empty;
         var localizedControlTypeSource = "uia";
         if (string.IsNullOrEmpty(localizedControlType) && !string.IsNullOrEmpty(legacy?.RoleName))
@@ -1415,6 +1427,24 @@ public static class UiAutomationBootstrap
             DragPattern = ReadDragPattern(element),
             DropTargetPattern = ReadDropTargetPattern(element),
             LegacyAccessiblePattern = legacy,
+            LabeledBy = labeledBy,
+            ControllerFor = ReadElementReferenceArray(() => TryRead(() => element.CurrentControllerFor, null)),
+            DescribedBy = ReadElementReferenceArray(() => TryRead(() => element.CurrentDescribedBy, null)),
+            FlowsTo = ReadElementReferenceArray(() => TryRead(() => element.CurrentFlowsTo, null)),
+            FlowsFrom = extended.FlowsFrom,
+            FullDescription = extended.FullDescription,
+            PositionInSet = extended.PositionInSet,
+            SizeOfSet = extended.SizeOfSet,
+            Level = extended.Level,
+            AnnotationTypes = extended.AnnotationTypes,
+            LandmarkType = extended.LandmarkType,
+            LocalizedLandmarkType = extended.LocalizedLandmarkType,
+            HeadingLevel = extended.HeadingLevel,
+            IsDialog = extended.IsDialog,
+            IsPeripheral = extended.IsPeripheral,
+            LiveSetting = extended.LiveSetting,
+            LiveSettingName = extended.LiveSettingName,
+            OptimizeForVisualContent = extended.OptimizeForVisualContent,
             NameSource = nameSource,
             LocalizedControlTypeSource = localizedControlTypeSource
         };
@@ -1431,6 +1461,102 @@ public static class UiAutomationBootstrap
         {
             return Array.Empty<int>();
         }
+    }
+
+    /// <summary>
+    /// Reads the properties introduced by <c>IUIAutomationElement2</c> through
+    /// <c>IUIAutomationElement9</c>.
+    /// </summary>
+    /// <remarks>
+    /// Each interface level is cast independently and failures degrade to null,
+    /// so a Windows build that exposes Element4 but not Element9 still yields
+    /// everything it has. This mirrors how <see cref="WaitForEvent"/> soft-casts
+    /// to <c>IUIAutomation3</c> rather than demanding a minimum OS version.
+    ///
+    /// The element is not a separate COM object at any level - these are QueryInterface
+    /// views onto the proxy the caller already owns - so nothing here is released.
+    /// </remarks>
+    private static UiAutomationExtendedElementInfo ReadExtendedElementInfo(IUIAutomationElement element)
+    {
+        var info = new UiAutomationExtendedElementInfo();
+
+        if (element is IUIAutomationElement2 e2)
+        {
+            info.LiveSetting = TryRead<int?>(() => (int)e2.CurrentLiveSetting, null);
+            info.LiveSettingName = TryRead<string?>(() => e2.CurrentLiveSetting.ToString(), null);
+            info.OptimizeForVisualContent = TryRead<bool?>(() => e2.CurrentOptimizeForVisualContent != 0, null);
+            info.FlowsFrom = ReadElementReferenceArray(() => TryRead(() => e2.CurrentFlowsFrom, null));
+        }
+
+        if (element is IUIAutomationElement3 e3)
+        {
+            info.IsPeripheral = TryRead<bool?>(() => e3.CurrentIsPeripheral != 0, null);
+        }
+
+        if (element is IUIAutomationElement4 e4)
+        {
+            info.PositionInSet = TryRead<int?>(() => e4.CurrentPositionInSet, null);
+            info.SizeOfSet = TryRead<int?>(() => e4.CurrentSizeOfSet, null);
+            info.Level = TryRead<int?>(() => e4.CurrentLevel, null);
+            // Element-level annotation types, distinct from the text-range annotation
+            // walk in ReadAnnotations: these describe the element, not a run of text.
+            info.AnnotationTypes = TryRead<IReadOnlyList<int>?>(
+                () => (e4.CurrentAnnotationTypes as int[])?.ToArray(),
+                null);
+        }
+
+        if (element is IUIAutomationElement5 e5)
+        {
+            info.LandmarkType = TryRead<int?>(() => e5.CurrentLandmarkType, null);
+            info.LocalizedLandmarkType = TryRead<string?>(() => e5.CurrentLocalizedLandmarkType, null);
+        }
+
+        if (element is IUIAutomationElement6 e6)
+        {
+            info.FullDescription = TryRead<string?>(() => e6.CurrentFullDescription, null);
+        }
+
+        if (element is IUIAutomationElement8 e8)
+        {
+            // UIA reports headings as 80051..80059 and non-headings as
+            // HeadingLevel_None (80050), so a raw passthrough would put a
+            // meaningless five-digit constant on every element in a tree. Project
+            // the ordinary 1..9 a caller expects, and null for "not a heading".
+            info.HeadingLevel = TryRead<int?>(
+                () =>
+                {
+                    var raw = (int)e8.CurrentHeadingLevel;
+                    return raw > UIA_HeadingLevelIds.HeadingLevel_None && raw <= UIA_HeadingLevelIds.HeadingLevel9
+                        ? raw - UIA_HeadingLevelIds.HeadingLevel_None
+                        : null;
+                },
+                null);
+        }
+
+        if (element is IUIAutomationElement9 e9)
+        {
+            info.IsDialog = TryRead<bool?>(() => e9.CurrentIsDialog != 0, null);
+        }
+
+        return info;
+    }
+
+    private sealed class UiAutomationExtendedElementInfo
+    {
+        public string? FullDescription { get; set; }
+        public int? PositionInSet { get; set; }
+        public int? SizeOfSet { get; set; }
+        public int? Level { get; set; }
+        public IReadOnlyList<int>? AnnotationTypes { get; set; }
+        public int? LandmarkType { get; set; }
+        public string? LocalizedLandmarkType { get; set; }
+        public int? HeadingLevel { get; set; }
+        public bool? IsDialog { get; set; }
+        public bool? IsPeripheral { get; set; }
+        public int? LiveSetting { get; set; }
+        public string? LiveSettingName { get; set; }
+        public bool? OptimizeForVisualContent { get; set; }
+        public IReadOnlyList<UiAutomationElementReference> FlowsFrom { get; set; } = Array.Empty<UiAutomationElementReference>();
     }
 
     private static UiAutomationPatternInfo[] ReadSupportedPatterns(IUIAutomation automation, IUIAutomationElement element)
