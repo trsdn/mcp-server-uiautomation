@@ -197,8 +197,9 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
         bool cache = false,
         string cacheScope = "subtree",
         string cacheView = "control",
-        string scope = "subtree") =>
-        Execute(() => service.ReadText(CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView)));
+        string scope = "subtree",
+        string? find = null) =>
+        Execute(() => service.ReadText(CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView), find));
 
     [McpServerTool(Name = "uia_selection")]
     public string Selection(

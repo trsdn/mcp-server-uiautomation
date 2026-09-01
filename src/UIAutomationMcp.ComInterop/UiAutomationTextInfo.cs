@@ -1,8 +1,33 @@
 namespace UIAutomationMcp.ComInterop;
 
 /// <summary>
-/// Represents text information read through the UI Automation text pattern.
+/// A located run of text within a text provider, addressed by offset so callers
+/// can act on it in a later, independent call. UI Automation text ranges are live
+/// COM objects and cannot be carried between invocations, so offsets are the
+/// portable currency.
 /// </summary>
+public sealed class UiAutomationTextFindResult
+{
+    public bool Found { get; init; }
+
+    /// <summary>The text searched for.</summary>
+    public string Needle { get; init; } = string.Empty;
+
+    /// <summary>Offset of the match from the start of the document range.</summary>
+    public int? StartOffset { get; init; }
+
+    public int? Length { get; init; }
+
+    /// <summary>The matched text as the provider returned it, which may differ in case.</summary>
+    public string? Text { get; init; }
+
+    /// <summary>
+    /// Screen rectangles covering the match - more than one when it wraps across
+    /// lines. Empty when the range is off-screen.
+    /// </summary>
+    public IReadOnlyList<UiAutomationRect> BoundingRectangles { get; init; } = Array.Empty<UiAutomationRect>();
+}
+
 public sealed class UiAutomationTextInfo
 {
     public string Text { get; init; } = string.Empty;
@@ -30,4 +55,10 @@ public sealed class UiAutomationTextInfo
     public UiAutomationTextChildInfo? TextChild { get; init; }
 
     public UiAutomationTextEditInfo? TextEdit { get; init; }
+
+    /// <summary>
+    /// Result of a <c>--find</c> search, when one was requested. Null when no
+    /// search was asked for, which is different from a search that found nothing.
+    /// </summary>
+    public UiAutomationTextFindResult? Find { get; init; }
 }

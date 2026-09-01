@@ -41,7 +41,7 @@ try
         "descendants" => service.ListDescendants(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--view") ?? "control", ParseOptionalInt(input, "--max-results") ?? 50),
         "point" => service.GetElementFromPoint(ParseInt(input, "--x"), ParseInt(input, "--y")),
         "navigate" => service.Navigate(BuildLocateRequest(input, requireExplicit: true), input.RequireOption("--direction"), input.GetOption("--view") ?? "control"),
-        "text" => service.ReadText(BuildLocateRequest(input, requireExplicit: true)),
+        "text" => service.ReadText(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--find")),
         "selection" => service.ReadSelection(BuildLocateRequest(input, requireExplicit: true)),
         "table" => service.ReadTable(
             BuildLocateRequest(input, requireExplicit: true),
@@ -254,13 +254,17 @@ static void WriteHelp()
     Console.WriteLine("  children [locator flags] [--view raw|control|content] [--max-results <n>]");
     Console.WriteLine("  descendants [locator flags] [--view raw|control|content] [--max-results <n>]");
     Console.WriteLine("  navigate [locator flags] --direction <parent|first-child|last-child|next-sibling|previous-sibling|normalize> [--view raw|control|content]");
-    Console.WriteLine("  text [locator flags]");
+    Console.WriteLine("  text [locator flags] [--find <text>]");
+    Console.WriteLine("    --find <text>                  locate a run and report its offset, length and screen rectangles");
     Console.WriteLine("  selection [locator flags]");
     Console.WriteLine("  table [locator flags] [--max-rows <n>] [--max-columns <n>]");
     Console.WriteLine("    reads a Grid/Table control as a cell matrix (defaults: 50 rows, 25 columns)");
-    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|rotate|scroll|scroll-percent|scroll-into-view|set-range-value|set-view|dock|realize|default-action> [values] [locator flags]");
+    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|rotate|scroll|scroll-percent|scroll-into-view|select-text|move-caret|scroll-text-into-view|set-range-value|set-view|dock|realize|default-action> [values] [locator flags]");
     Console.WriteLine("    rotate <degrees>               rotates a Transform control; fails naming the capability when canRotate is false");
     Console.WriteLine("    scroll-into-view               asks the container to bring the element into view (ScrollItem); pairs with realize");
+    Console.WriteLine("    select-text <text> | --int <startOffset> [--number <length>]   selects a run of text");
+    Console.WriteLine("    move-caret <text> | --int <offset>                             places the caret without selecting");
+    Console.WriteLine("    scroll-text-into-view <text> | --int <startOffset>             scrolls a text run into view");
     Console.WriteLine("    set-view <view-id|view-name>   switches a MultipleView control (see multipleViewPattern.supportedViews)");
     Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
     Console.WriteLine("    realize                        realizes a virtualized item so it can be read or acted on");

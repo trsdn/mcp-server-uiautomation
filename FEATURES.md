@@ -53,7 +53,7 @@
 - `UiAutomationService.ListChildren(...)`
 - `UiAutomationService.ListDescendants(...)`
 - `UiAutomationService.Navigate(...)`
-- `UiAutomationService.ReadText(...)`
+- `UiAutomationService.ReadText(...)` (optional `findText` locates a run by offset, length and screen rectangles)
 - `UiAutomationService.ReadSelection(...)`
 - `UiAutomationService.ReadTable(...)`
 - `UiAutomationService.PerformAction(...)`
@@ -75,15 +75,18 @@
 - read text and selection information
 - read tabular controls as a cell matrix with headers
 - wait for one-shot UIA events
-- execute focus, invoke, value, selection, window, transform (move/resize/rotate), scroll, scroll-into-view, range-value, view-switch, dock, realize, and default-action verbs
+- execute focus, invoke, value, selection, window, transform (move/resize/rotate), scroll, scroll-into-view, text (select-text/move-caret/scroll-text-into-view), range-value, view-switch, dock, realize, and default-action verbs
 
 ### Validation
 - `UIAutomationMcp.Smoke`
 - CLI smoke commands for desktop and focused-element inspection
 - extension packaging that bundles the CLI and MCP server
 
+### Text range operations
+- `text --find` locates a run and reports offset, length and screen rectangles
+- `select-text`, `move-caret` and `scroll-text-into-view` act on a run addressed by search string or by offset, since UIA text ranges are live COM objects that cannot be carried between calls
+
 ## Near-term additions
-- broader pattern coverage beyond the currently exposed high-value patterns
 - longer-lived event subscriptions and higher-level event workflows
 - higher-level workflows on top of the generic locator/action layer
 

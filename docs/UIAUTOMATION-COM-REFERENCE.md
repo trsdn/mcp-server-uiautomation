@@ -332,6 +332,61 @@ with populated `grabbedItems`, and against File Explorer's list view, which expo
 DropTarget.
 
 
+### Text range operations
+
+The base Text pattern answers "what does this control contain". These verbs
+answer "act on this part of it".
+
+**The design problem, and the choice made.** `IUIAutomationTextRange` is a live
+COM object. It cannot be serialized, and it cannot survive between two CLI
+invocations or two MCP calls, because each runs on its own STA thread and
+releases everything it touched. So a caller has no way to say "the range you
+just found" in a later call.
+
+Three options were considered:
+
+1. **Offset addressing** — express ranges as `(startOffset, length)` and rebuild
+   them per call.
+2. **Compound verbs** — no range handles at all; each verb takes a search string
+   or an offset and performs the whole operation in one call.
+3. **Session handles** — keep ranges alive across calls. Rejected: it
+   contradicts the one-STA-thread-per-call model the whole interop layer is
+   built on, and it would make every caller responsible for releasing remote
+   COM state.
+
+The shipped surface is **2, with 1 as the addressing scheme** where an offset is
+genuinely needed. Every verb accepts either a search string or an explicit
+offset:
+
+```text
+uiamcp text --find "NEEDLE" --class RichEditD2DPT
+uiamcp action select-text "NEEDLE" --class RichEditD2DPT
+uiamcp action select-text --int 4 --number 5 --class RichEditD2DPT
+uiamcp action move-caret --int 0 --class RichEditD2DPT
+uiamcp action scroll-text-into-view "Third line" --class RichEditD2DPT
+```
+
+`text --find` reports the match by offset, length, text as the provider returned
+it, and screen rectangles — one per line, since a match that wraps produces
+several. A search that found nothing returns `found: false`, which is distinct
+from `find` being `null` because no search was requested.
+
+**Offsets are computed, never read**, exactly as for caret and annotations: the
+document range is cloned and its endpoints moved. Rebuilding a range from an
+offset therefore costs a few cross-process calls, which is the price of not
+holding COM state between invocations.
+
+**`move-caret` selects a degenerate range.** A range whose start and end coincide
+is how UI Automation expresses a caret position, so collapsing and selecting
+moves the caret without selecting anything.
+
+Verified against Windows 11 Notepad (`RichEditD2DPT`) by round trip rather than
+by return value alone: `--find "NEEDLE"` reported offset 67 with a real screen
+rectangle; `select-text --int 4 --number 5` produced a selection reading back as
+exactly `quick`; `move-caret --int 0` produced a caret reading back at offset 0.
+Both failure paths — text not present, and no range specified — report which
+input was missing.
+
 ### Changes and active-text-position events
 
 Two further event kinds complete the `wait-event` surface. Both are implemented,

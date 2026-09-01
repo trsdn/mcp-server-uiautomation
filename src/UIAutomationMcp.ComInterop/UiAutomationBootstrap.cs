@@ -339,7 +339,7 @@ public static class UiAutomationBootstrap
         }
     });
 
-    public static UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator) => RunInSta(() =>
+    public static UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator, string? findText = null) => RunInSta(() =>
     {
         IUIAutomation automation = CreateAutomation();
         IUIAutomationElement? element = null;
@@ -400,7 +400,8 @@ public static class UiAutomationBootstrap
                     Caret = ReadCaret(textPattern2, documentRange),
                     Annotations = ReadAnnotations(documentRange),
                     TextChild = ReadTextChild(element!),
-                    TextEdit = ReadTextEdit(textEditPattern)
+                    TextEdit = ReadTextEdit(textEditPattern),
+                    Find = string.IsNullOrEmpty(findText) ? null : FindTextRun(documentRange, findText!)
                 };
             }
             finally
@@ -813,6 +814,9 @@ public static class UiAutomationBootstrap
                 "dock" => PerformDock(element!, request.StringValue),
                 "realize" => PerformRealize(element!),
                 "scroll-into-view" => PerformScrollIntoView(element!),
+                "select-text" => PerformSelectText(element!, request.StringValue, request.IntValue, request.NumberValue),
+                "move-caret" => PerformMoveCaret(element!, request.StringValue, request.IntValue),
+                "scroll-text-into-view" => PerformScrollTextIntoView(element!, request.StringValue, request.IntValue, request.NumberValue),
                 "default-action" => PerformDefaultAction(element!),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.Action, "Unsupported action.")
             };
@@ -2510,6 +2514,237 @@ public static class UiAutomationBootstrap
             FinalRelease(range);
             FinalRelease(container);
             FinalRelease(pattern);
+        }
+    }
+
+    /// <summary>
+    /// Searches the document for <paramref name="needle"/> and reports the match by
+    /// offset, so a later independent call can act on it.
+    /// </summary>
+    /// <remarks>
+    /// Text ranges are live COM objects that cannot survive between CLI or MCP
+    /// invocations, which is why nothing here returns one. Offsets are the portable
+    /// address, and every verb that acts on text rebuilds its range from them.
+    /// </remarks>
+    private static UiAutomationTextFindResult FindTextRun(IUIAutomationTextRange? documentRange, string needle)
+    {
+        if (documentRange is null || string.IsNullOrEmpty(needle))
+        {
+            return new UiAutomationTextFindResult { Found = false, Needle = needle };
+        }
+
+        IUIAutomationTextRange? match = null;
+        try
+        {
+            // backward = 0, ignoreCase = 1: case-insensitive forward search is the
+            // useful default when a caller is locating text they read off a screen.
+            match = documentRange.FindText(needle, 0, 1);
+            if (match is null)
+            {
+                return new UiAutomationTextFindResult { Found = false, Needle = needle };
+            }
+
+            var text = TryRead<string?>(() => match.GetText(-1), null);
+            return new UiAutomationTextFindResult
+            {
+                Found = true,
+                Needle = needle,
+                StartOffset = ComputeOffset(documentRange, match),
+                Length = text?.Length,
+                Text = text,
+                BoundingRectangles = ReadBoundingRectangles(match)
+            };
+        }
+        catch (COMException)
+        {
+            return new UiAutomationTextFindResult { Found = false, Needle = needle };
+        }
+        finally
+        {
+            FinalRelease(match);
+        }
+    }
+
+    /// <summary>
+    /// Reads a range's screen rectangles. A range that wraps across lines reports
+    /// one rectangle per line; an off-screen range reports none.
+    /// </summary>
+    private static IReadOnlyList<UiAutomationRect> ReadBoundingRectangles(IUIAutomationTextRange range)
+    {
+        try
+        {
+            if (range.GetBoundingRectangles() is not double[] values || values.Length < 4)
+            {
+                return Array.Empty<UiAutomationRect>();
+            }
+
+            // The provider returns a flat [left, top, width, height, ...] array.
+            var results = new List<UiAutomationRect>(values.Length / 4);
+            for (var i = 0; i + 3 < values.Length; i += 4)
+            {
+                results.Add(new UiAutomationRect
+                {
+                    Left = (int)values[i],
+                    Top = (int)values[i + 1],
+                    Right = (int)(values[i] + values[i + 2]),
+                    Bottom = (int)(values[i + 1] + values[i + 3])
+                });
+            }
+
+            return results;
+        }
+        catch (COMException)
+        {
+            return Array.Empty<UiAutomationRect>();
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds a text range from an offset and length against the document range.
+    /// The caller owns the returned range and must release it.
+    /// </summary>
+    private static IUIAutomationTextRange? BuildRangeFromOffset(IUIAutomationTextRange documentRange, int startOffset, int length)
+    {
+        IUIAutomationTextRange? range = null;
+        try
+        {
+            range = documentRange.Clone();
+            if (range is null)
+            {
+                return null;
+            }
+
+            // Collapse to the document start, then walk both endpoints forward.
+            range.MoveEndpointByRange(
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                documentRange,
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+
+            if (startOffset > 0)
+            {
+                range.MoveEndpointByUnit(TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start, TextUnit.TextUnit_Character, startOffset);
+                range.MoveEndpointByRange(
+                    TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                    range,
+                    TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+            }
+
+            if (length > 0)
+            {
+                range.MoveEndpointByUnit(TextPatternRangeEndpoint.TextPatternRangeEndpoint_End, TextUnit.TextUnit_Character, length);
+            }
+
+            var result = range;
+            range = null;
+            return result;
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+        finally
+        {
+            FinalRelease(range);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the range a text verb should act on, from either a search string or
+    /// an explicit offset and length. The caller owns the returned range.
+    /// </summary>
+    private static IUIAutomationTextRange ResolveTextRange(
+        IUIAutomationElement element,
+        string? needle,
+        int? startOffset,
+        double? length)
+    {
+        IUIAutomationTextPattern? pattern = null;
+        IUIAutomationTextRange? documentRange = null;
+        try
+        {
+            pattern = GetPattern<IUIAutomationTextPattern>(element, UIA_PatternIds.UIA_TextPatternId)
+                ?? throw new InvalidOperationException("Element does not support the Text pattern.");
+            documentRange = pattern.DocumentRange
+                ?? throw new InvalidOperationException("The Text provider returned no document range.");
+
+            if (!string.IsNullOrEmpty(needle))
+            {
+                var match = documentRange.FindText(needle, 0, 1)
+                    ?? throw new InvalidOperationException($"The text \"{needle}\" was not found in this element.");
+                return match;
+            }
+
+            if (startOffset is null)
+            {
+                throw new InvalidOperationException(
+                    "A text range is required. Pass the text to act on, or --int <startOffset> with an optional --number <length>.");
+            }
+
+            return BuildRangeFromOffset(documentRange, Math.Max(0, startOffset.Value), (int)Math.Max(0, length ?? 0))
+                ?? throw new InvalidOperationException("Could not build a text range at that offset.");
+        }
+        finally
+        {
+            FinalRelease(documentRange);
+            FinalRelease(pattern);
+        }
+    }
+
+    private static string PerformSelectText(IUIAutomationElement element, string? needle, int? startOffset, double? length)
+    {
+        IUIAutomationTextRange? range = null;
+        try
+        {
+            range = ResolveTextRange(element, needle, startOffset, length);
+            range.Select();
+            return needle is null
+                ? FormattableString.Invariant($"Selected text at offset {startOffset}.")
+                : $"Selected \"{needle}\".";
+        }
+        finally
+        {
+            FinalRelease(range);
+        }
+    }
+
+    private static string PerformMoveCaret(IUIAutomationElement element, string? needle, int? startOffset)
+    {
+        IUIAutomationTextRange? range = null;
+        try
+        {
+            // A degenerate range - start and end at the same point - is how UIA
+            // expresses a caret position; selecting it moves the caret without
+            // selecting anything.
+            range = ResolveTextRange(element, needle, startOffset, 0);
+            range.MoveEndpointByRange(
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                range,
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+            range.Select();
+            return needle is null
+                ? FormattableString.Invariant($"Moved caret to offset {startOffset}.")
+                : $"Moved caret to \"{needle}\".";
+        }
+        finally
+        {
+            FinalRelease(range);
+        }
+    }
+
+    private static string PerformScrollTextIntoView(IUIAutomationElement element, string? needle, int? startOffset, double? length)
+    {
+        IUIAutomationTextRange? range = null;
+        try
+        {
+            range = ResolveTextRange(element, needle, startOffset, length);
+            range.ScrollIntoView(1);
+            return needle is null
+                ? FormattableString.Invariant($"Scrolled offset {startOffset} into view.")
+                : $"Scrolled \"{needle}\" into view.";
+        }
+        finally
+        {
+            FinalRelease(range);
         }
     }
 
