@@ -95,10 +95,13 @@ Provider-specific checks worth running after COM changes: Explorer for
 virtualization and tables, Notepad for text and caret, Character Map for the
 MSAA bridge, Edge for TextChild and ARIA.
 
-Two things remain unverified end to end and are documented as such in
+One thing remains unverified end to end and is documented as such in
 [the COM reference](../docs/UIAUTOMATION-COM-REFERENCE.md): the receive path for
-`changes` and `active-text-position` events, for which no raising provider could
-be found.
+`changes` and `active-text-position` events. That is structural rather than an
+oversight — WPF's `AutomationPeer` cannot raise either, and the native exports
+that can require a hosted provider whose harness would be larger than the code
+under test. If you encounter an application that raises one, that observation is
+worth more than another attempt at synthesising it.
 
 `action rotate` is no longer among them. WPF's built-in automation peers all
 report `canRotate: false`, so the success path was closed with a purpose-built
