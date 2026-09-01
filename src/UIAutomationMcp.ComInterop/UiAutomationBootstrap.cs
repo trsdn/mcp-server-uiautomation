@@ -737,12 +737,14 @@ public static class UiAutomationBootstrap
                 "close" => PerformClose(element!),
                 "move" => PerformMove(element!, request.NumberValue, request.SecondNumberValue),
                 "resize" => PerformResize(element!, request.NumberValue, request.SecondNumberValue),
+                "rotate" => PerformRotate(element!, request.NumberValue),
                 "scroll" => PerformScroll(element!, request.StringValue, request.SecondStringValue),
                 "scroll-percent" => PerformScrollPercent(element!, request.NumberValue, request.SecondNumberValue),
                 "set-range-value" => PerformSetRangeValue(element!, request.NumberValue),
                 "set-view" => PerformSetView(element!, request.StringValue, request.IntValue),
                 "dock" => PerformDock(element!, request.StringValue),
                 "realize" => PerformRealize(element!),
+                "scroll-into-view" => PerformScrollIntoView(element!),
                 "default-action" => PerformDefaultAction(element!),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.Action, "Unsupported action.")
             };
@@ -1418,6 +1420,7 @@ public static class UiAutomationBootstrap
             ScrollPattern = ReadScrollPattern(element),
             SelectionItemPattern = ReadSelectionItemPattern(automation, element),
             MultipleViewPattern = ReadMultipleViewPattern(element),
+            TransformPattern = ReadTransformPattern(element),
             DockPattern = ReadDockPattern(element),
             GridPattern = ReadGridPattern(element),
             GridItemPattern = ReadGridItemPattern(element),
@@ -1816,6 +1819,29 @@ public static class UiAutomationBootstrap
             {
                 DropTargetEffect = pattern.CurrentDropTargetEffect ?? string.Empty,
                 DropTargetEffects = pattern.CurrentDropTargetEffects ?? []
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static UiAutomationTransformPatternState? ReadTransformPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationTransformPattern>(element, UIA_PatternIds.UIA_TransformPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationTransformPatternState
+            {
+                CanMove = pattern.CurrentCanMove != 0,
+                CanResize = pattern.CurrentCanResize != 0,
+                CanRotate = pattern.CurrentCanRotate != 0
             };
         }
         finally
@@ -2745,6 +2771,7 @@ public static class UiAutomationBootstrap
 
         try
         {
+            AssertTransformCapability(pattern, TransformCapability.Move);
             pattern.Move(
                 x ?? throw new InvalidOperationException("The move action requires X and Y coordinates."),
                 y ?? throw new InvalidOperationException("The move action requires X and Y coordinates."));
@@ -2763,10 +2790,75 @@ public static class UiAutomationBootstrap
 
         try
         {
+            AssertTransformCapability(pattern, TransformCapability.Resize);
             pattern.Resize(
                 width ?? throw new InvalidOperationException("The resize action requires width and height."),
                 height ?? throw new InvalidOperationException("The resize action requires width and height."));
             return "Resized element.";
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static string PerformRotate(IUIAutomationElement element, double? degrees)
+    {
+        var pattern = GetPattern<IUIAutomationTransformPattern>(element, UIA_PatternIds.UIA_TransformPatternId)
+            ?? throw new InvalidOperationException("Element does not support the Transform pattern.");
+
+        try
+        {
+            AssertTransformCapability(pattern, TransformCapability.Rotate);
+            pattern.Rotate(degrees ?? throw new InvalidOperationException("The rotate action requires a number of degrees."));
+            return FormattableString.Invariant($"Rotated element by {degrees} degrees.");
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private enum TransformCapability
+    {
+        Move,
+        Resize,
+        Rotate
+    }
+
+    /// <summary>
+    /// Fails with the specific capability that is false rather than letting the
+    /// call reach COM and come back as an opaque provider error. A window that
+    /// cannot be resized advertises Transform all the same.
+    /// </summary>
+    private static void AssertTransformCapability(IUIAutomationTransformPattern pattern, TransformCapability capability)
+    {
+        var (supported, verb) = capability switch
+        {
+            TransformCapability.Move => (TryRead(() => pattern.CurrentCanMove != 0, true), "moved"),
+            TransformCapability.Resize => (TryRead(() => pattern.CurrentCanResize != 0, true), "resized"),
+            TransformCapability.Rotate => (TryRead(() => pattern.CurrentCanRotate != 0, true), "rotated"),
+            _ => (true, string.Empty)
+        };
+
+        if (!supported)
+        {
+            throw new InvalidOperationException(
+                $"The element supports the Transform pattern but reports that it cannot be {verb}. " +
+                "Check transformPattern on the element before retrying.");
+        }
+    }
+
+    private static string PerformScrollIntoView(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationScrollItemPattern>(element, UIA_PatternIds.UIA_ScrollItemPatternId)
+            ?? throw new InvalidOperationException(
+                "Element does not support the ScrollItem pattern. If the item is virtualized, try 'realize' first.");
+
+        try
+        {
+            pattern.ScrollIntoView();
+            return "Scrolled element into view.";
         }
         finally
         {

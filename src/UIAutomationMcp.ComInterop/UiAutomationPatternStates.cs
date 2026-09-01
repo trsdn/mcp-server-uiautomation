@@ -257,3 +257,16 @@ public sealed class UiAutomationDropTargetPatternState
     /// <summary>All effects this target can offer, when the provider enumerates them.</summary>
     public IReadOnlyList<string> DropTargetEffects { get; init; } = Array.Empty<string>();
 }
+
+/// <summary>
+/// Transform capability. Advertising the pattern does not mean every operation is
+/// allowed: a fixed-size dialog exposes Transform but reports CanResize false.
+/// </summary>
+public sealed class UiAutomationTransformPatternState
+{
+    public bool CanMove { get; init; }
+
+    public bool CanResize { get; init; }
+
+    public bool CanRotate { get; init; }
+}

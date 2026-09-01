@@ -238,7 +238,9 @@ static void WriteHelp()
     Console.WriteLine("  selection [locator flags]");
     Console.WriteLine("  table [locator flags] [--max-rows <n>] [--max-columns <n>]");
     Console.WriteLine("    reads a Grid/Table control as a cell matrix (defaults: 50 rows, 25 columns)");
-    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|scroll|scroll-percent|set-range-value|set-view|dock|realize|default-action> [values] [locator flags]");
+    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|rotate|scroll|scroll-percent|scroll-into-view|set-range-value|set-view|dock|realize|default-action> [values] [locator flags]");
+    Console.WriteLine("    rotate <degrees>               rotates a Transform control; fails naming the capability when canRotate is false");
+    Console.WriteLine("    scroll-into-view               asks the container to bring the element into view (ScrollItem); pairs with realize");
     Console.WriteLine("    set-view <view-id|view-name>   switches a MultipleView control (see multipleViewPattern.supportedViews)");
     Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
     Console.WriteLine("    realize                        realizes a virtualized item so it can be read or acted on");

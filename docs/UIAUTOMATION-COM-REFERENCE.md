@@ -77,7 +77,7 @@ authoritative status per pattern:
 | Window | readable + actionable | `windowPattern`, `action maximize`/`minimize`/`restore`/`close` |
 | Scroll | readable + actionable | `scrollPattern`, `action scroll`/`scroll-percent` |
 | SelectionItem | readable + actionable | `selectionItemPattern`, `action select`/`add-to-selection`/`remove-from-selection` |
-| Transform | actionable | `action move`/`resize` |
+| Transform | readable + actionable | `transformPattern`, `action move`/`resize`/`rotate` |
 | MultipleView | readable + actionable | `multipleViewPattern`, `action set-view` |
 | Dock | readable + actionable | `dockPattern`, `action dock` |
 | Text / Text2 | readable | `text` command: `caret`, `annotations`, `hasTextPattern2` |
@@ -85,11 +85,12 @@ authoritative status per pattern:
 | Grid, GridItem, Table, TableItem | readable | `gridPattern`, `gridItemPattern`, `tablePattern`, `tableItemPattern`, `table` command |
 | LegacyIAccessible | readable + actionable | `legacyAccessiblePattern`, `nameSource`/`localizedControlTypeSource`, `action default-action`, `set-value` fallback |
 | ItemContainer, VirtualizedItem | readable + actionable | `virtualization`, virtualized-item lookup fallback, `action realize` |
+| ScrollItem | actionable | `action scroll-into-view` |
 | TextChild | readable | `text` command: `textChild` (container + offset for inline elements) |
 | TextEdit | readable + observable | `text` command: `textEdit`, `wait-event --event-kind text-edit` |
 | Drag | readable | `dragPattern` (`isGrabbed`, `dropEffect`, `grabbedItems`) |
 | DropTarget | readable | `dropTargetPattern` (`dropTargetEffect`, `dropTargetEffects`) |
-| Annotation, Styles, Spreadsheet, SpreadsheetItem, CustomNavigation, ObjectModel, SynchronizedInput, Transform2, ScrollItem | detect-only | no consumer planned |
+| Annotation, Styles, Spreadsheet, SpreadsheetItem, CustomNavigation, ObjectModel, SynchronizedInput, Transform2 | detect-only | no consumer planned |
 
 ### MultipleView
 
@@ -329,6 +330,29 @@ itself instead of arriving as a bare number.
 Verified against the Windows 11 taskbar, whose task-list buttons expose the Drag pattern
 with populated `grabbedItems`, and against File Explorer's list view, which exposes
 DropTarget.
+
+### Transform and ScrollItem
+
+`transformPattern` reports `canMove`, `canResize` and `canRotate`. Advertising
+the pattern is not the same as permitting every operation — a fixed-size dialog
+exposes Transform and reports `canResize: false` — so `move`, `resize` and
+`rotate` check the specific capability first and fail naming it, rather than
+letting the call reach COM and return an opaque provider error.
+
+`TransformPattern2` (`Zoom`, `ZoomByUnit`, `CanZoom`, `ZoomLevel`) stays
+detect-only. Zoom would be genuinely useful against document and map surfaces,
+but no consumer needs it yet and adding it now would be speculative.
+
+`ScrollItem` has exactly one member, `ScrollIntoView()`, and no readable state —
+so, as with VirtualizedItem, the verb plus the `supportedPatterns` entry is the
+complete surface.
+
+It composes with virtualization: `realize` makes an off-screen item exist,
+`scroll-into-view` then makes it visible. The alternative, `scroll-percent`,
+requires the caller to compute a percentage from row counts they usually do not
+have; `ScrollIntoView()` asks the provider to work it out instead. When the
+pattern is absent the error points at `realize`, because a virtualized item that
+has not been materialized is the common reason for it to be missing.
 
 ### Element relationships and extended interface levels
 
