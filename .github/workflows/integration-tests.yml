@@ -14,6 +14,7 @@ on:
     paths:
       - 'src/**'
       - 'tests/**'
+      - 'scripts/**'
       - 'global.json'
       - 'Directory.Build.props'
       - 'Directory.Packages.props'
@@ -33,6 +34,23 @@ jobs:
 
       - name: Build solution
         run: dotnet build UIAutomationMcp.sln -c Release
+
+      # Guards two invariants the compiler cannot see: COM proxy release, and
+      # CLI/MCP parity plus action-verb documentation. Both are dependency-free
+      # and run in under a second. They fail loudly when they find nothing to
+      # scan, so a check that verifies nothing can never report success - which
+      # is exactly how the scripts these replaced rotted unnoticed.
+      #
+      # Placed before the runtime steps so a drift failure is reported on its
+      # own rather than behind an unrelated smoke failure.
+      - name: Run repository checks
+        shell: pwsh
+        run: |
+          ./scripts/check-com-leaks.ps1
+          ./scripts/check-cli-coverage.ps1
+
+      - name: Run tests
+        run: dotnet test UIAutomationMcp.sln -c Release --no-build --logger "console;verbosity=minimal"
 
       - name: Run smoke executable
         run: dotnet run --project src/UIAutomationMcp.Smoke/UIAutomationMcp.Smoke.csproj -c Release

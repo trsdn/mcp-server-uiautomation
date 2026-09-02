@@ -9,6 +9,12 @@ queries:
 paths:
   - 'src/**'
 
+# tests/** is excluded deliberately, not by accident of when it was empty.
+# It now holds real C#, but test code is not shipped, and security findings in a
+# test harness are noise against the analysis of the product itself. The
+# corresponding paths-ignore in codeql.yml keeps the two consistent: test-only
+# changes do not trigger an analysis that would not examine them anyway.
+# Revisit if test code ever grows logic worth scanning in its own right.
 paths-ignore:
   - '**/bin/**'
   - '**/obj/**'

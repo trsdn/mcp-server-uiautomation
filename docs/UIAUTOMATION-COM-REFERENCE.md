@@ -387,6 +387,12 @@ exactly `quick`; `move-caret --int 0` produced a caret reading back at offset 0.
 Both failure paths — text not present, and no range specified — report which
 input was missing.
 
+**Out-of-range offsets clamp rather than throw.** An offset arrives from a caller
+who cannot see the document, so a value past the end is ordinary input rather
+than programmer error. Verified against a live provider: an offset far beyond the
+document yields an empty selection, a length far beyond it stops at the document
+end, and a negative offset is treated as zero. None of these fail.
+
 ### Changes and active-text-position events
 
 Two further event kinds complete the `wait-event` surface. Both are implemented,
@@ -427,10 +433,20 @@ Notepad does not raise `active-text-position`, and neither does a WPF
 `RichTextBox` whose caret is being moved programmatically, at either desktop-root
 or window scope.
 
-That matches expectations — these two are the sparsest-supported events in the
-API — but it means the payload projection is reasoned from the interop
-signatures rather than observed, unlike `notification`, which was verified end to
-end. Treat the first real payload with appropriate suspicion.
+That is not for want of looking, and the reason is structural. WPF's
+`AutomationPeer` can raise exactly four things — `AutomationEvent`,
+`PropertyChanged`, `AsyncContentLoaded` and `Notification` — so no managed
+provider can raise either of these. `UIAutomationCore.dll` does export
+`UiaRaiseChangesEvent` and `UiaRaiseActiveTextPositionChangedEvent`, but calling
+them requires a hosted native provider: a window class, a `WM_GETOBJECT`
+handler, and a hand-written `IRawElementProviderSimple`. Building that harness
+would test the harness more than it tests these forty lines.
+
+So the payload projection is reasoned from the interop signatures rather than
+observed, unlike `notification`, which was verified end to end against a real
+provider. Treat the first real payload with appropriate suspicion — and if you
+do find an application that raises either event, that observation is worth more
+than another attempt at synthesising one.
 
 ### Notification events
 
@@ -506,6 +522,14 @@ the pattern is not the same as permitting every operation — a fixed-size dialo
 exposes Transform and reports `canResize: false` — so `move`, `resize` and
 `rotate` check the specific capability first and fail naming it, rather than
 letting the call reach COM and return an opaque provider error.
+
+`rotate` is verified in both directions. WPF's built-in automation peers all
+report `canRotate: false`, so the success path was checked against a purpose-built
+peer implementing `ITransformProvider` with rotation enabled: two successive
+`action rotate` calls moved the provider's own state from 45 to 135 degrees, read
+back through UI Automation rather than taken from the return value. The failure
+path was checked against a real window that reports `canRotate: false`, which
+produces the capability-specific message.
 
 `TransformPattern2` (`Zoom`, `ZoomByUnit`, `CanZoom`, `ZoomLevel`) stays
 detect-only. Zoom would be genuinely useful against document and map surfaces,
