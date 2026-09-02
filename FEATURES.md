@@ -83,7 +83,7 @@
 - extension packaging that bundles the CLI and MCP server
 
 ### Text range operations
-- `text --find` locates a run and reports offset, length and screen rectangles
+- `text --find` locates a run and reports offset, length and screen rectangles, case-insensitive and forward by default with `--match-case` and `--find-backward` available
 - `select-text`, `move-caret` and `scroll-text-into-view` act on a run addressed by search string or by offset, since UIA text ranges are live COM objects that cannot be carried between calls
 
 ## Near-term additions

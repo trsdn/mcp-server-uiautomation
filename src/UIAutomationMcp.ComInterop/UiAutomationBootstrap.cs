@@ -339,7 +339,7 @@ public static class UiAutomationBootstrap
         }
     });
 
-    public static UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator, string? findText = null) => RunInSta(() =>
+    public static UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator, string? findText = null, bool matchCase = false, bool searchBackward = false) => RunInSta(() =>
     {
         IUIAutomation automation = CreateAutomation();
         IUIAutomationElement? element = null;
@@ -401,7 +401,7 @@ public static class UiAutomationBootstrap
                     Annotations = ReadAnnotations(documentRange),
                     TextChild = ReadTextChild(element!),
                     TextEdit = ReadTextEdit(textEditPattern),
-                    Find = string.IsNullOrEmpty(findText) ? null : FindTextRun(documentRange, findText!)
+                    Find = string.IsNullOrEmpty(findText) ? null : FindTextRun(documentRange, findText!, matchCase, searchBackward)
                 };
             }
             finally
@@ -814,9 +814,9 @@ public static class UiAutomationBootstrap
                 "dock" => PerformDock(element!, request.StringValue),
                 "realize" => PerformRealize(element!),
                 "scroll-into-view" => PerformScrollIntoView(element!),
-                "select-text" => InvokeTextRangeOperation(() => PerformSelectText(element!, request.StringValue, request.IntValue, request.NumberValue)),
-                "move-caret" => InvokeTextRangeOperation(() => PerformMoveCaret(element!, request.StringValue, request.IntValue)),
-                "scroll-text-into-view" => InvokeTextRangeOperation(() => PerformScrollTextIntoView(element!, request.StringValue, request.IntValue, request.NumberValue)),
+                "select-text" => InvokeTextRangeOperation(() => PerformSelectText(element!, request.StringValue, request.IntValue, request.NumberValue, request.MatchCase, request.SearchBackward)),
+                "move-caret" => InvokeTextRangeOperation(() => PerformMoveCaret(element!, request.StringValue, request.IntValue, request.MatchCase, request.SearchBackward)),
+                "scroll-text-into-view" => InvokeTextRangeOperation(() => PerformScrollTextIntoView(element!, request.StringValue, request.IntValue, request.NumberValue, request.MatchCase, request.SearchBackward)),
                 "default-action" => PerformDefaultAction(element!),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.Action, "Unsupported action.")
             };
@@ -2536,7 +2536,11 @@ public static class UiAutomationBootstrap
     /// invocations, which is why nothing here returns one. Offsets are the portable
     /// address, and every verb that acts on text rebuilds its range from them.
     /// </remarks>
-    private static UiAutomationTextFindResult FindTextRun(IUIAutomationTextRange? documentRange, string needle)
+    private static UiAutomationTextFindResult FindTextRun(
+        IUIAutomationTextRange? documentRange,
+        string needle,
+        bool matchCase = false,
+        bool backward = false)
     {
         if (documentRange is null || string.IsNullOrEmpty(needle))
         {
@@ -2546,9 +2550,12 @@ public static class UiAutomationBootstrap
         IUIAutomationTextRange? match = null;
         try
         {
-            // backward = 0, ignoreCase = 1: case-insensitive forward search is the
-            // useful default when a caller is locating text they read off a screen.
-            match = documentRange.FindText(needle, 0, 1);
+            // FindText takes (text, backward, ignoreCase) as ints. Case-insensitive
+            // forward is the default because a caller is usually locating text they
+            // read off a screen and does not care about case; both are overridable
+            // for the cases where it matters, such as telling ERROR from Error, or
+            // wanting the last occurrence rather than the first.
+            match = documentRange.FindText(needle, backward ? 1 : 0, matchCase ? 0 : 1);
             if (match is null)
             {
                 return new UiAutomationTextFindResult { Found = false, Needle = needle };
@@ -2700,7 +2707,9 @@ public static class UiAutomationBootstrap
         IUIAutomationElement element,
         string? needle,
         int? startOffset,
-        double? length)
+        double? length,
+        bool matchCase = false,
+        bool backward = false)
     {
         IUIAutomationTextPattern? pattern = null;
         IUIAutomationTextRange? documentRange = null;
@@ -2716,7 +2725,7 @@ public static class UiAutomationBootstrap
                 IUIAutomationTextRange? match;
                 try
                 {
-                    match = documentRange.FindText(needle, 0, 1);
+                    match = documentRange.FindText(needle, backward ? 1 : 0, matchCase ? 0 : 1);
                 }
                 catch (Exception ex) when (ex is COMException or NotSupportedException)
                 {
@@ -2728,7 +2737,10 @@ public static class UiAutomationBootstrap
                         + "Address the range with --int <startOffset> and --number <length> instead.");
                 }
 
-                return match ?? throw new InvalidOperationException($"The text \"{needle}\" was not found in this element.");
+                return match ?? throw new InvalidOperationException(
+                    matchCase
+                        ? $"The text \"{needle}\" was not found in this element (case-sensitive search)."
+                        : $"The text \"{needle}\" was not found in this element.");
             }
 
             if (startOffset is null)
@@ -2747,12 +2759,12 @@ public static class UiAutomationBootstrap
         }
     }
 
-    private static string PerformSelectText(IUIAutomationElement element, string? needle, int? startOffset, double? length)
+    private static string PerformSelectText(IUIAutomationElement element, string? needle, int? startOffset, double? length, bool matchCase, bool backward)
     {
         IUIAutomationTextRange? range = null;
         try
         {
-            range = ResolveTextRange(element, needle, startOffset, length);
+            range = ResolveTextRange(element, needle, startOffset, length, matchCase, backward);
             range.Select();
             return needle is null
                 ? FormattableString.Invariant($"Selected text at offset {startOffset}.")
@@ -2764,7 +2776,7 @@ public static class UiAutomationBootstrap
         }
     }
 
-    private static string PerformMoveCaret(IUIAutomationElement element, string? needle, int? startOffset)
+    private static string PerformMoveCaret(IUIAutomationElement element, string? needle, int? startOffset, bool matchCase, bool backward)
     {
         IUIAutomationTextRange? range = null;
         try
@@ -2772,7 +2784,7 @@ public static class UiAutomationBootstrap
             // A degenerate range - start and end at the same point - is how UIA
             // expresses a caret position; selecting it moves the caret without
             // selecting anything.
-            range = ResolveTextRange(element, needle, startOffset, 0);
+            range = ResolveTextRange(element, needle, startOffset, 0, matchCase, backward);
             range.MoveEndpointByRange(
                 TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
                 range,
@@ -2788,12 +2800,12 @@ public static class UiAutomationBootstrap
         }
     }
 
-    private static string PerformScrollTextIntoView(IUIAutomationElement element, string? needle, int? startOffset, double? length)
+    private static string PerformScrollTextIntoView(IUIAutomationElement element, string? needle, int? startOffset, double? length, bool matchCase, bool backward)
     {
         IUIAutomationTextRange? range = null;
         try
         {
-            range = ResolveTextRange(element, needle, startOffset, length);
+            range = ResolveTextRange(element, needle, startOffset, length, matchCase, backward);
             range.ScrollIntoView(1);
             return needle is null
                 ? FormattableString.Invariant($"Scrolled offset {startOffset} into view.")

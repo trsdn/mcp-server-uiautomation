@@ -238,6 +238,109 @@ public sealed class TextTests(DesktopSampleFixture desktop)
     }
 
     [DesktopFact]
+    public void CaseSensitiveSearchIsNarrowerThanTheDefault()
+    {
+        // The default is case-insensitive because a caller is usually locating text
+        // read off a screen. --match-case must genuinely narrow the search rather
+        // than being accepted and ignored, so this asserts that a search for text
+        // whose case has been inverted stops matching.
+        var provider = FindTextProvider();
+        if (provider is null)
+        {
+            return;
+        }
+
+        var locator = LocatorFor(provider);
+        var document = service.ReadText(locator);
+        if (document is null || string.IsNullOrWhiteSpace(document.Text))
+        {
+            return;
+        }
+
+        // Take a run with at least one letter, then invert its case.
+        var needle = document.Text
+            .Split(' ', '\r', '\n')
+            .FirstOrDefault(w => w.Length >= 4 && w.Any(char.IsLetter) && w.Any(char.IsUpper) != w.Any(char.IsLower));
+        if (string.IsNullOrEmpty(needle))
+        {
+            return;
+        }
+
+        var inverted = new string(needle.Select(c => char.IsUpper(c) ? char.ToLowerInvariant(c) : char.ToUpperInvariant(c)).ToArray());
+        if (string.Equals(inverted, needle, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        var insensitive = service.ReadText(locator, inverted)?.Find;
+        var sensitive = service.ReadText(locator, inverted, matchCase: true)?.Find;
+        if (insensitive is null || sensitive is null || !insensitive.Found)
+        {
+            // The provider does not implement FindText; covered elsewhere.
+            return;
+        }
+
+        Assert.False(
+            sensitive.Found,
+            $"Case-sensitive search for \"{inverted}\" should miss where the insensitive search hit \"{insensitive.Text}\".");
+    }
+
+    [DesktopFact]
+    public void BackwardSearchIsAcceptedAndDoesNotPrecedeTheForwardMatch()
+    {
+        var provider = FindTextProvider();
+        if (provider is null)
+        {
+            return;
+        }
+
+        var locator = LocatorFor(provider);
+        var document = service.ReadText(locator);
+        var needle = document?.Text?.Split(' ', '\r', '\n').FirstOrDefault(w => w.Length >= 3);
+        if (string.IsNullOrEmpty(needle))
+        {
+            return;
+        }
+
+        var forward = service.ReadText(locator, needle)?.Find;
+        var backward = service.ReadText(locator, needle, searchBackward: true)?.Find;
+        if (forward?.Found != true || backward?.Found != true)
+        {
+            return;
+        }
+
+        // Backward finds the last occurrence, so it can never sit before the first.
+        Assert.True(
+            backward.StartOffset >= forward.StartOffset,
+            $"Backward match at {backward.StartOffset} precedes the forward match at {forward.StartOffset}.");
+    }
+
+    [DesktopFact]
+    public void ACaseSensitiveMissSaysThatItWasCaseSensitive()
+    {
+        var provider = FindTextProvider();
+        if (provider is null)
+        {
+            return;
+        }
+
+        var exception = Record.Exception(() => service.PerformAction(new UiAutomationActionRequest
+        {
+            Action = "select-text",
+            Locator = LocatorFor(provider),
+            StringValue = "nOsUcHtExT_UIAutomationMcpTests",
+            MatchCase = true
+        }));
+
+        if (exception is not null && exception.Message.Contains("not found", StringComparison.OrdinalIgnoreCase))
+        {
+            // A caller who forgot they asked for case sensitivity should be able to
+            // tell that from the message alone.
+            Assert.Contains("case-sensitive", exception.Message, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    [DesktopFact]
     public void TextRangeFailuresNeverLeakTheRawComMessage()
     {
         // "Specified method is not supported" tells a caller nothing about what to
