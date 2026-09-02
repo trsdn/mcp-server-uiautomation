@@ -18,4 +18,10 @@ public sealed class UiAutomationActionRequest
     public double? SecondNumberValue { get; init; }
 
     public int? IntValue { get; init; }
+
+    /// <summary>Search case-sensitively when a text verb is addressed by search string.</summary>
+    public bool MatchCase { get; init; }
+
+    /// <summary>Search backwards from the end of the document, so the last match wins.</summary>
+    public bool SearchBackward { get; init; }
 }

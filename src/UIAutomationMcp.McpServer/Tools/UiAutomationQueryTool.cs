@@ -198,8 +198,10 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
         string cacheScope = "subtree",
         string cacheView = "control",
         string scope = "subtree",
-        string? find = null) =>
-        Execute(() => service.ReadText(CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView), find));
+        string? find = null,
+        bool matchCase = false,
+        bool findBackward = false) =>
+        Execute(() => service.ReadText(CreateLocateRequest(root, focused, fromFocused, handle, x, y, name, className, automationId, frameworkId, controlType, processId, scope, cache, cacheScope, cacheView), find, matchCase, findBackward));
 
     [McpServerTool(Name = "uia_selection")]
     public string Selection(
@@ -301,7 +303,9 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
         int? controlType = null,
         int? processId = null,
         string scope = "subtree",
-        bool realizeVirtualized = true) =>
+        bool realizeVirtualized = true,
+        bool matchCase = false,
+        bool findBackward = false) =>
         Execute(() => service.PerformAction(new UiAutomationActionRequest
         {
             Action = action,
@@ -310,7 +314,9 @@ public sealed class UiAutomationQueryTool(UiAutomationService service) : UiAutom
             SecondStringValue = secondValue,
             NumberValue = number,
             SecondNumberValue = secondNumber,
-            IntValue = intValue
+            IntValue = intValue,
+            MatchCase = matchCase,
+            SearchBackward = findBackward
         }));
 
     private static UiAutomationLocateRequest CreateLocateRequest(

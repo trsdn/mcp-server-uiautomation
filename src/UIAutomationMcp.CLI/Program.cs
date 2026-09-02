@@ -41,7 +41,7 @@ try
         "descendants" => service.ListDescendants(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--view") ?? "control", ParseOptionalInt(input, "--max-results") ?? 50),
         "point" => service.GetElementFromPoint(ParseInt(input, "--x"), ParseInt(input, "--y")),
         "navigate" => service.Navigate(BuildLocateRequest(input, requireExplicit: true), input.RequireOption("--direction"), input.GetOption("--view") ?? "control"),
-        "text" => service.ReadText(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--find")),
+        "text" => service.ReadText(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--find"), input.HasFlag("--match-case"), input.HasFlag("--find-backward")),
         "selection" => service.ReadSelection(BuildLocateRequest(input, requireExplicit: true)),
         "table" => service.ReadTable(
             BuildLocateRequest(input, requireExplicit: true),
@@ -184,7 +184,9 @@ static UiAutomationActionRequest BuildActionRequest(CliInput input)
         SecondStringValue = secondValue ?? input.GetOption("--second-value"),
         NumberValue = TryParseDouble(firstValue ?? input.GetOption("--number")),
         SecondNumberValue = TryParseDouble(secondValue ?? input.GetOption("--second-number")),
-        IntValue = TryParseInt(input.GetOption("--int"))
+        IntValue = TryParseInt(input.GetOption("--int")),
+        MatchCase = input.HasFlag("--match-case"),
+        SearchBackward = input.HasFlag("--find-backward")
     };
 }
 
@@ -254,8 +256,10 @@ static void WriteHelp()
     Console.WriteLine("  children [locator flags] [--view raw|control|content] [--max-results <n>]");
     Console.WriteLine("  descendants [locator flags] [--view raw|control|content] [--max-results <n>]");
     Console.WriteLine("  navigate [locator flags] --direction <parent|first-child|last-child|next-sibling|previous-sibling|normalize> [--view raw|control|content]");
-    Console.WriteLine("  text [locator flags] [--find <text>]");
+    Console.WriteLine("  text [locator flags] [--find <text>] [--match-case] [--find-backward]");
     Console.WriteLine("    --find <text>                  locate a run and report its offset, length and screen rectangles");
+    Console.WriteLine("    --match-case                   search case-sensitively (default is case-insensitive)");
+    Console.WriteLine("    --find-backward                search from the end, so the last match wins");
     Console.WriteLine("  selection [locator flags]");
     Console.WriteLine("  table [locator flags] [--max-rows <n>] [--max-columns <n>]");
     Console.WriteLine("    reads a Grid/Table control as a cell matrix (defaults: 50 rows, 25 columns)");
@@ -265,6 +269,7 @@ static void WriteHelp()
     Console.WriteLine("    select-text <text> | --int <startOffset> [--number <length>]   selects a run of text");
     Console.WriteLine("    move-caret <text> | --int <offset>                             places the caret without selecting");
     Console.WriteLine("    scroll-text-into-view <text> | --int <startOffset>             scrolls a text run into view");
+    Console.WriteLine("    text verbs also accept --match-case and --find-backward when addressed by text");
     Console.WriteLine("    set-view <view-id|view-name>   switches a MultipleView control (see multipleViewPattern.supportedViews)");
     Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
     Console.WriteLine("    realize                        realizes a virtualized item so it can be read or acted on");

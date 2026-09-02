@@ -371,6 +371,22 @@ it, and screen rectangles — one per line, since a match that wraps produces
 several. A search that found nothing returns `found: false`, which is distinct
 from `find` being `null` because no search was requested.
 
+**Search is case-insensitive and forward by default**, because a caller is
+usually locating text they read off a screen. Both are overridable, on the read
+and on every verb that takes a search string:
+
+```text
+uiamcp text --find "Error" --match-case
+uiamcp text --find "ERROR" --find-backward
+uiamcp action select-text "Error" --match-case
+```
+
+`--match-case` matters when telling `ERROR` from `Error`; `--find-backward`
+returns the *last* occurrence, which otherwise cannot be expressed at all, since
+only the first match is returned and finding every match would cost a
+cross-process call each. A case-sensitive miss says so in its message, so a
+caller who forgot they asked for it can tell.
+
 **Offsets are computed, never read**, exactly as for caret and annotations: the
 document range is cloned and its endpoints moved. Rebuilding a range from an
 offset therefore costs a few cross-process calls, which is the price of not

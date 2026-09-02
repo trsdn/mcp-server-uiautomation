@@ -41,6 +41,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `inspect --try` (`tryInspect` over MCP), which returns `null` instead of failing when
   nothing matches. This is how a caller asserts that something is *gone* — a dialog that
   closed, a spinner that stopped — without catching an exception and reading its message.
+- `--match-case` and `--find-backward` for text search, on the `text --find` read and on
+  every verb addressed by a search string. The defaults are unchanged - case-insensitive
+  and forward - but a caller can now tell `ERROR` from `Error`, and ask for the last
+  occurrence rather than the first, which previously could not be expressed at all because
+  only the first match is ever returned.
 - A test project. The repository previously had none, so nothing would catch a regression
   in the COM layer, which is where essentially every defect here lives. 69 tests covering
   the DTO and JSON contract, and real UI Automation behaviour against a live desktop.
