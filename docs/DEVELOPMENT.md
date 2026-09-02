@@ -24,9 +24,10 @@ For MCP server changes, verify the server starts cleanly and that stdout remains
 
 ## Repository checks
 
-Two scripts guard invariants the compiler cannot see. Both fail loudly if they
-find nothing to inspect, so a check that verifies nothing can never report
-success.
+Two scripts guard invariants the compiler cannot see. Both run in CI on every
+pull request, and both fail loudly if they find nothing to inspect - so a check
+that verifies nothing can never report success, which is how the scripts these
+replaced rotted unnoticed.
 
 ```powershell
 pwsh -File scripts\check-com-leaks.ps1
