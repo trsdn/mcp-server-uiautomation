@@ -6,7 +6,70 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Element metadata now includes the relationship properties that live on the base
+  `IUIAutomationElement` and had simply never been read: `labeledBy`, `controllerFor`,
+  `describedBy`, `flowsTo`, plus `flowsFrom` from `IUIAutomationElement2`. They are
+  projected as flat element references rather than full element info, because a column
+  header is its own column header and full info would not terminate.
+- The properties carried by `IUIAutomationElement2` through `IUIAutomationElement9`:
+  `fullDescription`, `positionInSet`, `sizeOfSet`, `level`, `landmarkType`,
+  `localizedLandmarkType`, `headingLevel`, `isDialog`, `isPeripheral`, `liveSetting`,
+  `annotationTypes` and `optimizeForVisualContent`. Each interface level is cast
+  independently and degrades to `null`, so an older Windows build yields what it has and
+  `null` means "this OS cannot answer" rather than "the provider said zero".
+  `fullDescription` matters most in practice: WinUI, UWP and Edge often leave `name` terse
+  and put the meaningful text there.
+- Three further event kinds for `wait-event`: `notification`, which carries provider
+  announcements such as "File saved" in `displayString` and is frequently the only
+  programmatic signal that an operation finished; plus `changes` and
+  `active-text-position`.
+- Transform pattern state (`canMove`, `canResize`, `canRotate`) and a `rotate` verb.
+  `ITransformProvider.Rotate` had always existed and was never wired up alongside `Move`
+  and `Resize`.
+- A `scroll-into-view` verb backed by the ScrollItem pattern, which composes with the
+  existing `realize`: one makes an off-screen item exist, the other makes it visible.
+- Negative locator criteria — `--not-name`, `--not-class`, `--not-automation-id` and
+  `--not-control-type` — evaluated by the provider through `CreateNotCondition` rather
+  than by fetching everything and filtering. That is not only faster; filtering after the
+  fact is wrong under `--max-results`, where a cap consumed by elements the caller meant
+  to skip returns a truncated list that looks complete.
+- Text range operations: `text --find` reports a run's offset, length and screen
+  rectangles, and `select-text`, `move-caret` and `scroll-text-into-view` act on a run
+  addressed by search string or by offset. Offsets are the addressing scheme because UI
+  Automation ranges are live COM objects that cannot survive between two stateless calls.
+- `inspect --try` (`tryInspect` over MCP), which returns `null` instead of failing when
+  nothing matches. This is how a caller asserts that something is *gone* — a dialog that
+  closed, a spinner that stopped — without catching an exception and reading its message.
+- A test project. The repository previously had none, so nothing would catch a regression
+  in the COM layer, which is where essentially every defect here lives. 69 tests covering
+  the DTO and JSON contract, and real UI Automation behaviour against a live desktop.
+
 ### Fixed
+- A race condition in every one-shot event handler. The captured sender was touched by
+  both the UI Automation callback thread and the waiting STA thread without
+  synchronisation, which produced an intermittent `NullReferenceException` under a burst
+  of structure-changed events. Capture is now a lock-free first-event-wins exchange.
+- An event sender read after the element had been destroyed. Synchronising the capture was
+  necessary but not sufficient: the sender crosses an apartment boundary and may refer to
+  an element that no longer exists, particularly after a timeout where a late callback
+  lands while the result is being built. An unreadable sender is now reported as no sender
+  rather than failing the caller's whole wait over one field.
+- `NotSupportedException` escaping text search and text range operations. Advertising the
+  Text pattern does not oblige a provider to implement `FindText`, `Clone`, the endpoint
+  moves, `Select` or `ScrollIntoView`; several raise `E_NOTIMPL`, which reaches managed
+  code as `NotSupportedException` rather than `COMException` and surfaced as the
+  unactionable "Specified method is not supported". The failure now explains that the
+  provider exposes text but not range manipulation, and that reading still works.
+- `TryRead` caught only `COMException`, so a dead or partially-implemented element could
+  still abort an entire property projection.
+- A spurious `Pattern:0` entry in `supportedPatterns`, from providers that occasionally
+  report a zero pattern id.
+- `headingLevel` reported the raw UI Automation constant, so every non-heading element
+  carried a meaningless `80050`. It is now the ordinary 1–9, or `null` for "not a heading".
+- A notification event that timed out reported `NotificationKind_ItemAdded`, because zero
+  is a valid enum value. All notification fields are now `null` unless an event arrived.
+
 - A partially published release can now be finished instead of burning the version number.
   Publishing is not atomic, and the git tag is created before the publish job, so a failure
   in any single registry left the version tagged — the `version` job then refused that tag
@@ -27,12 +90,40 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   fails the job.
 
 ### Changed
+- **Name resolution has a third tier.** When both the native UI Automation name and the
+  MSAA bridge are empty, the labelling element supplies one and `nameSource` reports
+  `labeledBy`. This makes previously anonymous Win32 and WinForms inputs addressable by
+  name — a form of edit boxes used to inspect as identical unnamed `Edit` elements
+  distinguishable only by geometry. Callers that match on an empty `name` will see
+  different results.
+- **`move`, `resize` and `rotate` fail earlier and more clearly.** Advertising the
+  Transform pattern is not the same as permitting every operation, so each verb now checks
+  the specific capability first and names the one that is false, instead of letting the
+  call reach COM and return an opaque provider error.
+- Two repository checks are enforced in CI rather than left to be run by hand:
+  `check-com-leaks.ps1` asserts that every acquired COM proxy is released, and
+  `check-cli-coverage.ps1` asserts that every action verb appears in the CLI help text,
+  that CLI and MCP stay at one-to-one parity, and that no file states a tool count that
+  disagrees with the code. Both replace scripts that could not do their job: one called a
+  file that did not exist, the other scanned zero files and exited `0`, reporting success
+  while verifying nothing. Both now fail loudly when they find nothing to scan.
+
 - The automated post-release changelog pull request now says in its own body that it needs
   an admin merge. It is opened by `GITHUB_TOKEN`, and GitHub does not start workflow runs
   for such pushes, so its required status checks never report and it would otherwise sit
   blocked indefinitely.
 - `docs/DEVELOPMENT.md` now documents how releases are cut, how to resume a partial one, and
   which secrets the pipeline needs.
+
+### Removed
+- `Directory.Build.targets`, an empty `<Project>` element imported on every build, and
+  `tests/Directory.Build.props`, which only had meaning if `tests/` held project files.
+- Thirteen `PackageVersion` entries that resolved to nothing. `StreamJsonRpc`,
+  `Microsoft.Extensions.Resilience` and `Microsoft.Extensions.ObjectPool` were fingerprints
+  of the pre-migration JSON-RPC subprocess model; the xunit stack described test projects
+  that did not exist at the time. The five genuine transitive pins are kept and now carry a
+  comment explaining why, and the resolved package graph is unchanged.
+
 
 ## [1.0.2] - 2026-08-25
 
