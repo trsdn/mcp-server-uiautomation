@@ -33,13 +33,15 @@ try
         "find-name" => service.FindFirstByName(input.RequireOption("--name")),
         "find-class" => service.FindFirstByClassName(input.RequireOption("--class")),
         "find-automation-id" => service.FindFirstByAutomationId(input.RequireOption("--automation-id")),
-        "inspect" => service.Inspect(BuildLocateRequest(input, requireExplicit: false)),
+        "inspect" => input.HasFlag("--try")
+            ? service.TryInspect(BuildLocateRequest(input, requireExplicit: false))
+            : service.Inspect(BuildLocateRequest(input, requireExplicit: false)),
         "find" => service.FindAll(BuildSearchRequest(input)),
         "children" => service.ListChildren(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--view") ?? "control", ParseOptionalInt(input, "--max-results") ?? 50),
         "descendants" => service.ListDescendants(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--view") ?? "control", ParseOptionalInt(input, "--max-results") ?? 50),
         "point" => service.GetElementFromPoint(ParseInt(input, "--x"), ParseInt(input, "--y")),
         "navigate" => service.Navigate(BuildLocateRequest(input, requireExplicit: true), input.RequireOption("--direction"), input.GetOption("--view") ?? "control"),
-        "text" => service.ReadText(BuildLocateRequest(input, requireExplicit: true)),
+        "text" => service.ReadText(BuildLocateRequest(input, requireExplicit: true), input.GetOption("--find")),
         "selection" => service.ReadSelection(BuildLocateRequest(input, requireExplicit: true)),
         "table" => service.ReadTable(
             BuildLocateRequest(input, requireExplicit: true),
@@ -77,6 +79,9 @@ static UiAutomationLocateRequest BuildLocateRequest(CliInput input, bool require
         AutomationId = input.GetOption("--automation-id"),
         FrameworkId = input.GetOption("--framework-id"),
         Scope = input.GetOption("--scope") ?? "subtree",
+        NotName = input.GetOption("--not-name"),
+        NotClassName = input.GetOption("--not-class"),
+        NotAutomationId = input.GetOption("--not-automation-id"),
         RealizeVirtualized = !input.HasFlag("--no-virtualized"),
         CacheRequest = BuildCacheRequest(input)
     };
@@ -84,6 +89,11 @@ static UiAutomationLocateRequest BuildLocateRequest(CliInput input, bool require
     if (input.TryGetOption("--control-type", out var controlTypeText))
     {
         request.ControlType = int.Parse(controlTypeText, CultureInfo.InvariantCulture);
+    }
+
+    if (input.TryGetOption("--not-control-type", out var notControlTypeText))
+    {
+        request.NotControlType = int.Parse(notControlTypeText, CultureInfo.InvariantCulture);
     }
 
     if (input.TryGetOption("--process-id", out var processIdText))
@@ -111,7 +121,11 @@ static UiAutomationLocateRequest BuildLocateRequest(CliInput input, bool require
         || !string.IsNullOrWhiteSpace(request.AutomationId)
         || !string.IsNullOrWhiteSpace(request.FrameworkId)
         || request.ControlType.HasValue
-        || request.ProcessId.HasValue;
+        || request.ProcessId.HasValue
+        || !string.IsNullOrWhiteSpace(request.NotName)
+        || !string.IsNullOrWhiteSpace(request.NotClassName)
+        || !string.IsNullOrWhiteSpace(request.NotAutomationId)
+        || request.NotControlType.HasValue;
 
     if (requireExplicit && !hasLocator)
     {
@@ -140,6 +154,10 @@ static UiAutomationSearchRequest BuildSearchRequest(CliInput input)
         ControlType = locate.ControlType,
         ProcessId = locate.ProcessId,
         SearchFromFocused = locate.SearchFromFocused,
+        NotName = locate.NotName,
+        NotClassName = locate.NotClassName,
+        NotAutomationId = locate.NotAutomationId,
+        NotControlType = locate.NotControlType,
         Scope = locate.Scope,
         MaxResults = maxResults,
         CacheRequest = locate.CacheRequest
@@ -177,7 +195,8 @@ static UiAutomationEventWaitRequest BuildEventWaitRequest(CliInput input) => new
     CacheRequest = BuildCacheRequest(input),
     TimeoutMs = input.TryGetOption("--timeout-ms", out var timeoutText) ? int.Parse(timeoutText, CultureInfo.InvariantCulture) : 5000,
     EventId = input.TryGetOption("--event-id", out var eventIdText) ? int.Parse(eventIdText, CultureInfo.InvariantCulture) : null,
-    PropertyId = input.TryGetOption("--property-id", out var propertyIdText) ? int.Parse(propertyIdText, CultureInfo.InvariantCulture) : null
+    PropertyId = input.TryGetOption("--property-id", out var propertyIdText) ? int.Parse(propertyIdText, CultureInfo.InvariantCulture) : null,
+    ChangeId = input.TryGetOption("--change-id", out var changeIdText) ? int.Parse(changeIdText, CultureInfo.InvariantCulture) : null
 };
 
 static UiAutomationCacheRequestInfo? BuildCacheRequest(CliInput input)
@@ -229,21 +248,31 @@ static void WriteHelp()
     Console.WriteLine("  find-name --name <text>");
     Console.WriteLine("  find-class --class <class>");
     Console.WriteLine("  find-automation-id --automation-id <id>");
-    Console.WriteLine("  inspect [locator flags]");
+    Console.WriteLine("  inspect [locator flags] [--try]");
+    Console.WriteLine("    --try                          return null and exit 0 when nothing matches, instead of failing");
     Console.WriteLine("  find [locator flags] [--max-results <n>]");
     Console.WriteLine("  children [locator flags] [--view raw|control|content] [--max-results <n>]");
     Console.WriteLine("  descendants [locator flags] [--view raw|control|content] [--max-results <n>]");
     Console.WriteLine("  navigate [locator flags] --direction <parent|first-child|last-child|next-sibling|previous-sibling|normalize> [--view raw|control|content]");
-    Console.WriteLine("  text [locator flags]");
+    Console.WriteLine("  text [locator flags] [--find <text>]");
+    Console.WriteLine("    --find <text>                  locate a run and report its offset, length and screen rectangles");
     Console.WriteLine("  selection [locator flags]");
     Console.WriteLine("  table [locator flags] [--max-rows <n>] [--max-columns <n>]");
     Console.WriteLine("    reads a Grid/Table control as a cell matrix (defaults: 50 rows, 25 columns)");
-    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|scroll|scroll-percent|set-range-value|set-view|dock|realize|default-action> [values] [locator flags]");
+    Console.WriteLine("  action <focus|invoke|set-value|expand|collapse|toggle|select|add-to-selection|remove-from-selection|maximize|minimize|restore|close|move|resize|rotate|scroll|scroll-percent|scroll-into-view|select-text|move-caret|scroll-text-into-view|set-range-value|set-view|dock|realize|default-action> [values] [locator flags]");
+    Console.WriteLine("    rotate <degrees>               rotates a Transform control; fails naming the capability when canRotate is false");
+    Console.WriteLine("    scroll-into-view               asks the container to bring the element into view (ScrollItem); pairs with realize");
+    Console.WriteLine("    select-text <text> | --int <startOffset> [--number <length>]   selects a run of text");
+    Console.WriteLine("    move-caret <text> | --int <offset>                             places the caret without selecting");
+    Console.WriteLine("    scroll-text-into-view <text> | --int <startOffset>             scrolls a text run into view");
     Console.WriteLine("    set-view <view-id|view-name>   switches a MultipleView control (see multipleViewPattern.supportedViews)");
     Console.WriteLine("    dock <top|left|bottom|right|fill|none>");
     Console.WriteLine("    realize                        realizes a virtualized item so it can be read or acted on");
     Console.WriteLine("    default-action                 runs the MSAA default action (LegacyIAccessible) for controls with no modern actionable pattern");
-    Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure|text-edit> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [locator flags]");
+    Console.WriteLine("  wait-event --event-kind <focus|automation|property|structure|text-edit|notification|changes|active-text-position> [--timeout-ms <ms>] [--event-id <id>] [--property-id <id>] [--change-id <id>] [locator flags]");
+    Console.WriteLine("    notification                   observes provider announcements (\"File saved\", \"3 results found\") in displayString");
+    Console.WriteLine("    changes                        observes batched provider changes; --change-id defaults to 90000 (UIA_SummaryChangeId)");
+    Console.WriteLine("    active-text-position           observes caret/active-position moves in a text provider, with a document offset");
     Console.WriteLine("    text-edit                      observes auto-correct, IME composition, and auto-complete changes (TextEdit pattern)");
     Console.WriteLine("    drag and drop are automation events: --event-kind automation --event-id 20026 (drag start), 20027 (cancel),");
     Console.WriteLine("      20028 (complete), 20029 (drag enter), 20030 (drag leave), 20031 (dropped)");
@@ -260,6 +289,10 @@ static void WriteHelp()
     Console.WriteLine("  --framework-id <id>");
     Console.WriteLine("  --control-type <id>");
     Console.WriteLine("  --process-id <pid>");
+    Console.WriteLine("  --not-name <text>                exclude elements whose name matches");
+    Console.WriteLine("  --not-class <class>              exclude elements whose class name matches");
+    Console.WriteLine("  --not-automation-id <id>         exclude elements whose automation id matches");
+    Console.WriteLine("  --not-control-type <id>          exclude elements of this control type");
     Console.WriteLine("  --scope <element|children|descendants|subtree>");
     Console.WriteLine("  --no-virtualized                 do not ask ItemContainer providers for items missing from the live tree");
     Console.WriteLine("  --cache");

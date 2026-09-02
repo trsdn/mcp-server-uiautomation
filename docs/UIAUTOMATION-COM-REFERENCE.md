@@ -77,7 +77,7 @@ authoritative status per pattern:
 | Window | readable + actionable | `windowPattern`, `action maximize`/`minimize`/`restore`/`close` |
 | Scroll | readable + actionable | `scrollPattern`, `action scroll`/`scroll-percent` |
 | SelectionItem | readable + actionable | `selectionItemPattern`, `action select`/`add-to-selection`/`remove-from-selection` |
-| Transform | actionable | `action move`/`resize` |
+| Transform | readable + actionable | `transformPattern`, `action move`/`resize`/`rotate` |
 | MultipleView | readable + actionable | `multipleViewPattern`, `action set-view` |
 | Dock | readable + actionable | `dockPattern`, `action dock` |
 | Text / Text2 | readable | `text` command: `caret`, `annotations`, `hasTextPattern2` |
@@ -85,11 +85,12 @@ authoritative status per pattern:
 | Grid, GridItem, Table, TableItem | readable | `gridPattern`, `gridItemPattern`, `tablePattern`, `tableItemPattern`, `table` command |
 | LegacyIAccessible | readable + actionable | `legacyAccessiblePattern`, `nameSource`/`localizedControlTypeSource`, `action default-action`, `set-value` fallback |
 | ItemContainer, VirtualizedItem | readable + actionable | `virtualization`, virtualized-item lookup fallback, `action realize` |
+| ScrollItem | actionable | `action scroll-into-view` |
 | TextChild | readable | `text` command: `textChild` (container + offset for inline elements) |
 | TextEdit | readable + observable | `text` command: `textEdit`, `wait-event --event-kind text-edit` |
 | Drag | readable | `dragPattern` (`isGrabbed`, `dropEffect`, `grabbedItems`) |
 | DropTarget | readable | `dropTargetPattern` (`dropTargetEffect`, `dropTargetEffects`) |
-| Annotation, Styles, Spreadsheet, SpreadsheetItem, CustomNavigation, ObjectModel, SynchronizedInput, Transform2, ScrollItem | detect-only | no consumer planned |
+| Annotation, Styles, Spreadsheet, SpreadsheetItem, CustomNavigation, ObjectModel, SynchronizedInput, Transform2 | detect-only | no consumer planned |
 
 ### MultipleView
 
@@ -330,8 +331,254 @@ Verified against the Windows 11 taskbar, whose task-list buttons expose the Drag
 with populated `grabbedItems`, and against File Explorer's list view, which exposes
 DropTarget.
 
-### Element references in pattern state
 
+### Text range operations
+
+The base Text pattern answers "what does this control contain". These verbs
+answer "act on this part of it".
+
+**The design problem, and the choice made.** `IUIAutomationTextRange` is a live
+COM object. It cannot be serialized, and it cannot survive between two CLI
+invocations or two MCP calls, because each runs on its own STA thread and
+releases everything it touched. So a caller has no way to say "the range you
+just found" in a later call.
+
+Three options were considered:
+
+1. **Offset addressing** — express ranges as `(startOffset, length)` and rebuild
+   them per call.
+2. **Compound verbs** — no range handles at all; each verb takes a search string
+   or an offset and performs the whole operation in one call.
+3. **Session handles** — keep ranges alive across calls. Rejected: it
+   contradicts the one-STA-thread-per-call model the whole interop layer is
+   built on, and it would make every caller responsible for releasing remote
+   COM state.
+
+The shipped surface is **2, with 1 as the addressing scheme** where an offset is
+genuinely needed. Every verb accepts either a search string or an explicit
+offset:
+
+```text
+uiamcp text --find "NEEDLE" --class RichEditD2DPT
+uiamcp action select-text "NEEDLE" --class RichEditD2DPT
+uiamcp action select-text --int 4 --number 5 --class RichEditD2DPT
+uiamcp action move-caret --int 0 --class RichEditD2DPT
+uiamcp action scroll-text-into-view "Third line" --class RichEditD2DPT
+```
+
+`text --find` reports the match by offset, length, text as the provider returned
+it, and screen rectangles — one per line, since a match that wraps produces
+several. A search that found nothing returns `found: false`, which is distinct
+from `find` being `null` because no search was requested.
+
+**Offsets are computed, never read**, exactly as for caret and annotations: the
+document range is cloned and its endpoints moved. Rebuilding a range from an
+offset therefore costs a few cross-process calls, which is the price of not
+holding COM state between invocations.
+
+**`move-caret` selects a degenerate range.** A range whose start and end coincide
+is how UI Automation expresses a caret position, so collapsing and selecting
+moves the caret without selecting anything.
+
+Verified against Windows 11 Notepad (`RichEditD2DPT`) by round trip rather than
+by return value alone: `--find "NEEDLE"` reported offset 67 with a real screen
+rectangle; `select-text --int 4 --number 5` produced a selection reading back as
+exactly `quick`; `move-caret --int 0` produced a caret reading back at offset 0.
+Both failure paths — text not present, and no range specified — report which
+input was missing.
+
+### Changes and active-text-position events
+
+Two further event kinds complete the `wait-event` surface. Both are implemented,
+and both are **honestly less proven than the rest of this document**.
+
+| Kind | Interface | Registration |
+| --- | --- | --- |
+| `changes` | `IUIAutomation4` | `AddChangesEventHandler` |
+| `active-text-position` | `IUIAutomation6` | `AddActiveTextPositionChangedEventHandler` |
+
+Note the interface levels: `changes` is on **4**, not 5. `IUIAutomation5` is
+where *notification* lives. Both casts are soft and fail with a readable message.
+
+`changes` takes `--change-id`, defaulting to `UIA_SummaryChangeId` (90000) —
+the only change id UI Automation defines.
+
+Its interop signature is awkward in a way worth knowing about. Both the
+registration and the callback take a `ref` to the first element of an array plus
+a separate count, rather than an array parameter:
+
+```csharp
+void HandleChangesEvent(IUIAutomationElement sender, ref UiaChangeInfo uiaChanges, int changesCount);
+```
+
+Only the first change is therefore reachable without unsafe pointer arithmetic.
+`changeCount` is reported so a caller can tell that more changes were coalesced
+into the same notification, rather than silently seeing one.
+
+`active-text-position` reports the range's text plus a document offset, computed
+the same way the `text` command derives caret offsets — by cloning the document
+range and moving its endpoint, because `IUIAutomationTextRange` exposes no offset
+property.
+
+**What has and has not been verified.** Registration, a clean timeout with a
+null payload, and handler removal are verified for both. The *receive* path is
+not: no provider raising either event could be found on the development machine.
+Notepad does not raise `active-text-position`, and neither does a WPF
+`RichTextBox` whose caret is being moved programmatically, at either desktop-root
+or window scope.
+
+That matches expectations — these two are the sparsest-supported events in the
+API — but it means the payload projection is reasoned from the interop
+signatures rather than observed, unlike `notification`, which was verified end to
+end. Treat the first real payload with appropriate suspicion.
+
+### Notification events
+
+`wait-event --event-kind notification` observes `IUIAutomation5.AddNotificationEventHandler`.
+
+Notification is how a provider announces something that is neither a tree change
+nor a property change: "File saved", "3 results found", "Password too short".
+For an agent driving an application it is frequently the only programmatic
+signal that an operation finished or failed — the alternative is polling for a
+property change that may never fire.
+
+The payload is the point:
+
+```json
+{
+  "eventKind": "notification",
+  "timedOut": false,
+  "notificationKindName": "NotificationKind_ActionCompleted",
+  "notificationProcessingName": "NotificationProcessing_ImportantAll",
+  "displayString": "Probe notification fired.",
+  "activityId": "probe-activity-1"
+}
+```
+
+Two details worth knowing:
+
+- **The interface is `IUIAutomation5`, not `IUIAutomation4`.** The notification
+  *event id* was introduced alongside Windows 10 1709 APIs, but in
+  `Interop.UIAutomationClient` the add/remove methods are declared on
+  `IUIAutomation5`. The cast is soft, as with text-edit, and an older client
+  fails with a readable message rather than an `InvalidCastException`.
+- **A timeout reports no payload at all.** `NotificationKind` 0 is
+  `ItemAdded`, so populating the fields on timeout would describe a notification
+  that never happened. All notification fields are `null` when `timedOut` is
+  true.
+
+Verified against a WPF window calling
+`AutomationPeer.RaiseNotificationEvent(ActionCompleted, ImportantAll, ...)`.
+
+### Condition model and negation
+
+Locator criteria are AND-composed property conditions. Negated criteria wrap a
+property condition in `CreateNotCondition`, so exclusions are evaluated by the
+provider rather than by fetching everything and filtering client-side.
+
+That distinction is not only about speed, though every excluded element does
+cost a cross-process read. It is about correctness under `--max-results`: a cap
+consumed entirely by elements the caller meant to skip returns a truncated list
+that looks complete.
+
+`--not-name`, `--not-class`, `--not-automation-id` and `--not-control-type`
+compose with the positive criteria and with `--scope`. A request carrying only
+negative criteria is still a request; it resolves against the search origin
+rather than being treated as "no locator given".
+
+`CreateFalseCondition` is deliberately unused - it has no caller that a true
+condition plus ordinary filtering does not already serve.
+
+### Absence as a result
+
+`Inspect` throws when nothing matches; `TryInspect` returns null. Both are now
+reachable: `inspect --try` (CLI) and `tryInspect: true` (MCP) select the second.
+
+This matters for assertions about things that should be *gone* - a dialog that
+has closed, a spinner that has stopped. Without it, proving absence meant
+catching a thrown error and inferring intent from its message. It pairs with
+`--no-virtualized`, which exists so a caller can assert an item is genuinely
+absent rather than merely unmaterialized.
+### Transform and ScrollItem
+
+`transformPattern` reports `canMove`, `canResize` and `canRotate`. Advertising
+the pattern is not the same as permitting every operation — a fixed-size dialog
+exposes Transform and reports `canResize: false` — so `move`, `resize` and
+`rotate` check the specific capability first and fail naming it, rather than
+letting the call reach COM and return an opaque provider error.
+
+`TransformPattern2` (`Zoom`, `ZoomByUnit`, `CanZoom`, `ZoomLevel`) stays
+detect-only. Zoom would be genuinely useful against document and map surfaces,
+but no consumer needs it yet and adding it now would be speculative.
+
+`ScrollItem` has exactly one member, `ScrollIntoView()`, and no readable state —
+so, as with VirtualizedItem, the verb plus the `supportedPatterns` entry is the
+complete surface.
+
+It composes with virtualization: `realize` makes an off-screen item exist,
+`scroll-into-view` then makes it visible. The alternative, `scroll-percent`,
+requires the caller to compute a percentage from row counts they usually do not
+have; `ScrollIntoView()` asks the provider to work it out instead. When the
+pattern is absent the error points at `realize`, because a virtualized item that
+has not been materialized is the common reason for it to be missing.
+
+### Element relationships and extended interface levels
+
+Two groups of element properties sit outside the flat metadata block.
+
+**Relationships** come from the base `IUIAutomationElement` and point at other
+elements: `labeledBy`, `controllerFor`, `describedBy`, `flowsTo`, plus
+`flowsFrom` from `IUIAutomationElement2`. They use the flat element *reference*
+shape described below rather than full element info, for the same
+non-termination reason.
+
+`labeledBy` is the one that changes what is addressable. Win32 and WinForms
+inputs frequently carry no name of their own, and the label beside them is a
+separate element. Name resolution therefore has three tiers, reported through
+`nameSource`:
+
+| `nameSource` | Meaning |
+| --- | --- |
+| `uia` | the provider supplied a native name |
+| `legacy` | the native name was empty; the MSAA bridge supplied one |
+| `labeledBy` | both were empty; the labelling element supplied one |
+
+Verified against the live desktop: of 400 scanned elements, 4 reported
+`labeledBy` and 16 reported `controllerFor`.
+
+**Extended properties** live on `IUIAutomationElement2` through
+`IUIAutomationElement9`. `CreateAutomation()` activates `CUIAutomation8Class`,
+so these are reachable, but each level is cast independently and failures
+degrade to `null` — the same soft-cast approach `WaitForEvent` already uses for
+`IUIAutomation3`. A build that exposes Element4 but not Element9 still yields
+everything it has, and `null` means "this OS cannot answer" rather than "the
+provider said zero".
+
+| Property | Interface |
+| --- | --- |
+| `liveSetting` / `liveSettingName`, `optimizeForVisualContent`, `flowsFrom` | Element2 |
+| `isPeripheral` | Element3 |
+| `positionInSet`, `sizeOfSet`, `level`, `annotationTypes` | Element4 |
+| `landmarkType`, `localizedLandmarkType` | Element5 |
+| `fullDescription` | Element6 |
+| `headingLevel` | Element8 |
+| `isDialog` | Element9 |
+
+Two of these need care:
+
+- **`fullDescription` is often where the meaning is.** WinUI, UWP and Edge
+  frequently leave `name` terse and put the real accessible description here.
+  An element that looks anonymous is worth re-checking against this field.
+- **`headingLevel` is normalized.** UIA reports `HeadingLevel_None` as 80050 and
+  headings as 80051–80059, so a raw passthrough would stamp a meaningless
+  five-digit constant on every element in a tree. It is projected to the
+  ordinary 1–9, and `null` for "not a heading".
+
+`annotationTypes` here is *element-level* and is distinct from the format-run
+annotation walk performed by the `text` command, which describes runs of text
+rather than the element itself.
+
+### Element references in pattern state
 Pattern state that points at other elements — a cell's containing grid, a table's
 headers — uses a flat element *reference* (name, class, automation id, control type,
 runtime id, bounds) rather than full element info. This is deliberate: a column

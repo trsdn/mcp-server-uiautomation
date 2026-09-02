@@ -11,7 +11,7 @@
     <ToolCommandName>uiamcp-server</ToolCommandName>
     <PackageId>UIAutomationMcp.McpServer</PackageId>
     <Title>UIAutomationMcp MCP Server</Title>
-    <Description>Windows UI Automation MCP server for AI assistants. Exposes 17 tools for desktop inspection, element lookup, tree navigation, text and selection reading, control pattern actions, and event waiting. Windows only.</Description>
+    <Description>Windows UI Automation MCP server for AI assistants. Exposes tools for desktop inspection, element lookup, tree navigation, text and selection reading, control pattern actions, and event waiting. Windows only.</Description>
     <PackageTags>mcp;model-context-protocol;ui-automation;uia;windows;desktop;automation;accessibility;ai;copilot;claude</PackageTags>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>

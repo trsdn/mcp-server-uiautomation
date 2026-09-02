@@ -38,7 +38,7 @@ public sealed class UiAutomationService
     public UiAutomationElementInfo? Navigate(UiAutomationLocateRequest locator, string direction, string view = "control") =>
         UiAutomationBootstrap.Navigate(locator, direction, view);
 
-    public UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator) => UiAutomationBootstrap.ReadText(locator);
+    public UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator, string? findText = null) => UiAutomationBootstrap.ReadText(locator, findText);
 
     public UiAutomationSelectionInfo? ReadSelection(UiAutomationLocateRequest locator) => UiAutomationBootstrap.ReadSelection(locator);
 

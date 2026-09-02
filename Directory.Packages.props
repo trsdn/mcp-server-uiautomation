@@ -4,31 +4,27 @@
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
+
+  <!-- Referenced directly by a project. -->
   <ItemGroup>
     <PackageVersion Include="Interop.UIAutomationClient" Version="10.19041.0" />
-    <!-- Microsoft Extensions for MCP Server -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.4" />
-    <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.4" />
-    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
-    <PackageVersion Include="Microsoft.Extensions.Resilience" Version="9.1.0" />
+    <PackageVersion Include="ModelContextProtocol" Version="0.9.0-preview.2" />
+  </ItemGroup>
+
+  <!--
+    Transitive pins. No project references these by name; they are pulled in by
+    Microsoft.Extensions.Hosting and ModelContextProtocol, and are pinned here
+    because CentralPackageTransitivePinningEnabled is on. Removing one does not
+    remove the dependency - it only surrenders control of which version restores.
+    Each is present in the resolved graph; verify with project.assets.json before
+    touching this list.
+  -->
+  <ItemGroup>
     <PackageVersion Include="Microsoft.Extensions.Configuration" Version="9.0.4" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="9.0.4" />
-    <PackageVersion Include="Microsoft.Extensions.ObjectPool" Version="9.0.4" />
-    <PackageVersion Include="StreamJsonRpc" Version="2.24.84" />
+    <PackageVersion Include="Microsoft.Extensions.Logging" Version="9.0.4" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.3" />
     <PackageVersion Include="System.Text.Json" Version="10.0.3" />
-    <!-- MCP SDK - Latest stable preview -->
-    <PackageVersion Include="ModelContextProtocol" Version="0.9.0-preview.2" />
-    <!-- Testing Framework -->
-    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageVersion Include="System.Net.Http" Version="4.3.5" />
-    <PackageVersion Include="System.Text.RegularExpressions" Version="4.3.2" />
-    <PackageVersion Include="xunit" Version="2.9.3" />
-    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.5" />
-    <PackageVersion Include="coverlet.collector" Version="6.1.0" />
-    <PackageVersion Include="MartinCostello.Logging.XUnit" Version="0.7.0" />
-    <!-- Code Analysis and Security -->
-    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="4.12.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.Analyzers" Version="4.14.0" />
-    <PackageVersion Include="Microsoft.CodeAnalysis.NetAnalyzers" Version="9.0.0" />
   </ItemGroup>
 </Project>

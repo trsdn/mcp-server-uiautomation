@@ -33,5 +33,47 @@ public sealed class UiAutomationEventResult
     /// </summary>
     public IReadOnlyList<string>? EventStrings { get; init; }
 
+    /// <summary>Raw <c>NotificationKind</c> reported by a notification event.</summary>
+    public int? NotificationKind { get; init; }
+
+    public string? NotificationKindName { get; init; }
+
+    /// <summary>Raw <c>NotificationProcessing</c>, describing how the announcement should be queued.</summary>
+    public int? NotificationProcessing { get; init; }
+
+    public string? NotificationProcessingName { get; init; }
+
+    /// <summary>
+    /// The text the provider wants announced - "File saved", "3 results found".
+    /// This is the payload of a notification event and usually the only reason to
+    /// have waited for one.
+    /// </summary>
+    public string? DisplayString { get; init; }
+
+    /// <summary>Provider-chosen id correlating related notifications.</summary>
+    public string? ActivityId { get; init; }
+
+    /// <summary>Change id reported by a changes event; <c>UIA_SummaryChangeId</c> is 90000.</summary>
+    public int? ChangeId { get; init; }
+
+    /// <summary>Provider-supplied payload for the reported change, rendered as text.</summary>
+    public string? ChangePayload { get; init; }
+
+    /// <summary>
+    /// How many changes the provider coalesced into this notification. Only the
+    /// first is readable: the interop signature passes a single <c>ref</c> struct
+    /// plus a count rather than an array.
+    /// </summary>
+    public int? ChangeCount { get; init; }
+
+    /// <summary>Text of the range reported by an active-text-position event.</summary>
+    public string? TextRangeText { get; init; }
+
+    /// <summary>
+    /// Document offset of that range, computed the same way the <c>text</c> command
+    /// derives caret offsets, since ranges expose no offset property.
+    /// </summary>
+    public int? TextRangeOffset { get; init; }
+
     public UiAutomationElementInfo? SourceElement { get; init; }
 }

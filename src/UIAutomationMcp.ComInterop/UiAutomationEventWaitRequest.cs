@@ -16,4 +16,10 @@ public sealed class UiAutomationEventWaitRequest
     public int? EventId { get; init; }
 
     public int? PropertyId { get; init; }
+
+    /// <summary>
+    /// Change type for a <c>changes</c> event. Defaults to
+    /// <c>UIA_SummaryChangeId</c> (90000), the only change id UI Automation defines.
+    /// </summary>
+    public int? ChangeId { get; init; }
 }

@@ -339,7 +339,7 @@ public static class UiAutomationBootstrap
         }
     });
 
-    public static UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator) => RunInSta(() =>
+    public static UiAutomationTextInfo? ReadText(UiAutomationLocateRequest locator, string? findText = null) => RunInSta(() =>
     {
         IUIAutomation automation = CreateAutomation();
         IUIAutomationElement? element = null;
@@ -400,7 +400,8 @@ public static class UiAutomationBootstrap
                     Caret = ReadCaret(textPattern2, documentRange),
                     Annotations = ReadAnnotations(documentRange),
                     TextChild = ReadTextChild(element!),
-                    TextEdit = ReadTextEdit(textEditPattern)
+                    TextEdit = ReadTextEdit(textEditPattern),
+                    Find = string.IsNullOrEmpty(findText) ? null : FindTextRun(documentRange, findText!)
                 };
             }
             finally
@@ -475,6 +476,9 @@ public static class UiAutomationBootstrap
         PropertyChangedEventHandler? propertyHandler = null;
         StructureChangedEventHandler? structureHandler = null;
         TextEditEventHandler? textEditHandler = null;
+        NotificationEventHandler? notificationHandler = null;
+        ChangesEventHandler? changesHandler = null;
+        ActiveTextPositionEventHandler? activeTextHandler = null;
 
         try
         {
@@ -530,6 +534,47 @@ public static class UiAutomationBootstrap
 
                     break;
 
+                case "notification":
+                    origin = ResolveEventOrigin(automation, request, cacheRequest);
+                    notificationHandler = new NotificationEventHandler();
+                    var notificationAutomation = automation as IUIAutomation5
+                        ?? throw new InvalidOperationException("Notification events require UI Automation 5 or later.");
+                    notificationAutomation.AddNotificationEventHandler(
+                        origin,
+                        ParseTreeScope(request.Locator.Scope),
+                        cacheRequest,
+                        notificationHandler);
+                    break;
+
+                case "changes":
+                    origin = ResolveEventOrigin(automation, request, cacheRequest);
+                    changesHandler = new ChangesEventHandler();
+                    var changesAutomation = automation as IUIAutomation4
+                        ?? throw new InvalidOperationException("Changes events require UI Automation 4 or later.");
+                    // The registration takes a ref to the first element of a change-type
+                    // array plus a count, not an array parameter.
+                    var changeTypes = new[] { request.ChangeId ?? UIA_ChangeIds.UIA_SummaryChangeId };
+                    changesAutomation.AddChangesEventHandler(
+                        origin,
+                        ParseTreeScope(request.Locator.Scope),
+                        ref changeTypes[0],
+                        changeTypes.Length,
+                        cacheRequest,
+                        changesHandler);
+                    break;
+
+                case "active-text-position":
+                    origin = ResolveEventOrigin(automation, request, cacheRequest);
+                    activeTextHandler = new ActiveTextPositionEventHandler();
+                    var activeTextAutomation = automation as IUIAutomation6
+                        ?? throw new InvalidOperationException("Active-text-position events require UI Automation 6 or later.");
+                    activeTextAutomation.AddActiveTextPositionChangedEventHandler(
+                        origin,
+                        ParseTreeScope(request.Locator.Scope),
+                        cacheRequest,
+                        activeTextHandler);
+                    break;
+
                 default:
                     throw new ArgumentOutOfRangeException(nameof(request), request.EventKind, "Unsupported event kind.");
             }
@@ -541,6 +586,9 @@ public static class UiAutomationBootstrap
                 "property" => propertyHandler!.WaitHandle.WaitOne(timeoutMs),
                 "structure" => structureHandler!.WaitHandle.WaitOne(timeoutMs),
                 "text-edit" => textEditHandler!.WaitHandle.WaitOne(timeoutMs),
+                "notification" => notificationHandler!.WaitHandle.WaitOne(timeoutMs),
+                "changes" => changesHandler!.WaitHandle.WaitOne(timeoutMs),
+                "active-text-position" => activeTextHandler!.WaitHandle.WaitOne(timeoutMs),
                 _ => false
             };
 
@@ -551,6 +599,9 @@ public static class UiAutomationBootstrap
                 "property" => propertyHandler!.ToResult(automation, !signaled),
                 "structure" => structureHandler!.ToResult(automation, !signaled),
                 "text-edit" => textEditHandler!.ToResult(automation, !signaled),
+                "notification" => notificationHandler!.ToResult(automation, !signaled),
+                "changes" => changesHandler!.ToResult(automation, !signaled),
+                "active-text-position" => activeTextHandler!.ToResult(automation, !signaled),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.EventKind, "Unsupported event kind.")
             };
         }
@@ -581,11 +632,29 @@ public static class UiAutomationBootstrap
                 automation3.RemoveTextEditTextChangedEventHandler(origin, textEditHandler);
             }
 
+            if (notificationHandler is not null && origin is not null && automation is IUIAutomation5 automation5)
+            {
+                automation5.RemoveNotificationEventHandler(origin, notificationHandler);
+            }
+
+            if (changesHandler is not null && origin is not null && automation is IUIAutomation4 automation4)
+            {
+                automation4.RemoveChangesEventHandler(origin, changesHandler);
+            }
+
+            if (activeTextHandler is not null && origin is not null && automation is IUIAutomation6 automation6)
+            {
+                automation6.RemoveActiveTextPositionChangedEventHandler(origin, activeTextHandler);
+            }
+
             focusHandler?.Dispose();
             automationHandler?.Dispose();
             propertyHandler?.Dispose();
             structureHandler?.Dispose();
             textEditHandler?.Dispose();
+            notificationHandler?.Dispose();
+            changesHandler?.Dispose();
+            activeTextHandler?.Dispose();
             FinalRelease(cacheRequest);
             FinalRelease(origin);
             FinalRelease(automation);
@@ -737,12 +806,17 @@ public static class UiAutomationBootstrap
                 "close" => PerformClose(element!),
                 "move" => PerformMove(element!, request.NumberValue, request.SecondNumberValue),
                 "resize" => PerformResize(element!, request.NumberValue, request.SecondNumberValue),
+                "rotate" => PerformRotate(element!, request.NumberValue),
                 "scroll" => PerformScroll(element!, request.StringValue, request.SecondStringValue),
                 "scroll-percent" => PerformScrollPercent(element!, request.NumberValue, request.SecondNumberValue),
                 "set-range-value" => PerformSetRangeValue(element!, request.NumberValue),
                 "set-view" => PerformSetView(element!, request.StringValue, request.IntValue),
                 "dock" => PerformDock(element!, request.StringValue),
                 "realize" => PerformRealize(element!),
+                "scroll-into-view" => PerformScrollIntoView(element!),
+                "select-text" => PerformSelectText(element!, request.StringValue, request.IntValue, request.NumberValue),
+                "move-caret" => PerformMoveCaret(element!, request.StringValue, request.IntValue),
+                "scroll-text-into-view" => PerformScrollTextIntoView(element!, request.StringValue, request.IntValue, request.NumberValue),
                 "default-action" => PerformDefaultAction(element!),
                 _ => throw new ArgumentOutOfRangeException(nameof(request), request.Action, "Unsupported action.")
             };
@@ -1168,7 +1242,13 @@ public static class UiAutomationBootstrap
         || !string.IsNullOrWhiteSpace(request.AutomationId)
         || !string.IsNullOrWhiteSpace(request.FrameworkId)
         || request.ControlType.HasValue
-        || request.ProcessId.HasValue;
+        || request.ProcessId.HasValue
+        // A request carrying only negative criteria is still a request. Treating it
+        // as "no locator" would silently resolve to the search origin instead.
+        || !string.IsNullOrWhiteSpace(request.NotName)
+        || !string.IsNullOrWhiteSpace(request.NotClassName)
+        || !string.IsNullOrWhiteSpace(request.NotAutomationId)
+        || request.NotControlType.HasValue;
 
     private static IUIAutomationCondition BuildFilterCondition(IUIAutomation automation, UiAutomationLocateRequest request)
     {
@@ -1206,6 +1286,14 @@ public static class UiAutomationBootstrap
                 conditions.Add(automation.CreatePropertyCondition(UIA_PropertyIds.UIA_ProcessIdPropertyId, request.ProcessId.Value));
             }
 
+            AddNegatedCondition(automation, conditions, UIA_PropertyIds.UIA_NamePropertyId, request.NotName);
+            AddNegatedCondition(automation, conditions, UIA_PropertyIds.UIA_ClassNamePropertyId, request.NotClassName);
+            AddNegatedCondition(automation, conditions, UIA_PropertyIds.UIA_AutomationIdPropertyId, request.NotAutomationId);
+            if (request.NotControlType.HasValue)
+            {
+                AddNegatedCondition(automation, conditions, UIA_PropertyIds.UIA_ControlTypePropertyId, request.NotControlType.Value);
+            }
+
             if (conditions.Count == 0)
             {
                 return automation.CreateTrueCondition();
@@ -1224,6 +1312,35 @@ public static class UiAutomationBootstrap
         }
     }
 
+    /// <summary>
+    /// Wraps a property condition in <c>CreateNotCondition</c> and adds it to the
+    /// AND-composed list. The inner condition is released immediately: the Not
+    /// wrapper holds its own reference, and the caller only ever releases what is
+    /// in <paramref name="conditions"/>.
+    /// </summary>
+    private static void AddNegatedCondition(
+        IUIAutomation automation,
+        List<IUIAutomationCondition> conditions,
+        int propertyId,
+        object? value)
+    {
+        if (value is null || (value is string text && string.IsNullOrWhiteSpace(text)))
+        {
+            return;
+        }
+
+        IUIAutomationCondition? inner = null;
+        try
+        {
+            inner = automation.CreatePropertyCondition(propertyId, value);
+            conditions.Add(automation.CreateNotCondition(inner));
+        }
+        finally
+        {
+            FinalRelease(inner);
+        }
+    }
+
     private static IUIAutomationCondition BuildFilterCondition(IUIAutomation automation, UiAutomationSearchRequest request) =>
         BuildFilterCondition(
             automation,
@@ -1235,6 +1352,10 @@ public static class UiAutomationBootstrap
                 FrameworkId = request.FrameworkId,
                 ControlType = request.ControlType,
                 ProcessId = request.ProcessId,
+                NotName = request.NotName,
+                NotClassName = request.NotClassName,
+                NotAutomationId = request.NotAutomationId,
+                NotControlType = request.NotControlType,
                 Scope = request.Scope
             });
 
@@ -1357,6 +1478,18 @@ public static class UiAutomationBootstrap
             nameSource = "legacy";
         }
 
+        // A labelling element is the last resort, and only when neither the native
+        // name nor the MSAA bridge produced one. Win32 and WinForms inputs routinely
+        // carry no name of their own and are identifiable only through their label.
+        var labeledBy = ReadElementReference(() => TryRead(() => element.CurrentLabeledBy, null));
+        if (string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(labeledBy?.Name))
+        {
+            name = labeledBy!.Name;
+            nameSource = "labeledBy";
+        }
+
+        var extended = ReadExtendedElementInfo(element);
+
         var localizedControlType = element.CurrentLocalizedControlType ?? string.Empty;
         var localizedControlTypeSource = "uia";
         if (string.IsNullOrEmpty(localizedControlType) && !string.IsNullOrEmpty(legacy?.RoleName))
@@ -1406,6 +1539,7 @@ public static class UiAutomationBootstrap
             ScrollPattern = ReadScrollPattern(element),
             SelectionItemPattern = ReadSelectionItemPattern(automation, element),
             MultipleViewPattern = ReadMultipleViewPattern(element),
+            TransformPattern = ReadTransformPattern(element),
             DockPattern = ReadDockPattern(element),
             GridPattern = ReadGridPattern(element),
             GridItemPattern = ReadGridItemPattern(element),
@@ -1415,6 +1549,24 @@ public static class UiAutomationBootstrap
             DragPattern = ReadDragPattern(element),
             DropTargetPattern = ReadDropTargetPattern(element),
             LegacyAccessiblePattern = legacy,
+            LabeledBy = labeledBy,
+            ControllerFor = ReadElementReferenceArray(() => TryRead(() => element.CurrentControllerFor, null)),
+            DescribedBy = ReadElementReferenceArray(() => TryRead(() => element.CurrentDescribedBy, null)),
+            FlowsTo = ReadElementReferenceArray(() => TryRead(() => element.CurrentFlowsTo, null)),
+            FlowsFrom = extended.FlowsFrom,
+            FullDescription = extended.FullDescription,
+            PositionInSet = extended.PositionInSet,
+            SizeOfSet = extended.SizeOfSet,
+            Level = extended.Level,
+            AnnotationTypes = extended.AnnotationTypes,
+            LandmarkType = extended.LandmarkType,
+            LocalizedLandmarkType = extended.LocalizedLandmarkType,
+            HeadingLevel = extended.HeadingLevel,
+            IsDialog = extended.IsDialog,
+            IsPeripheral = extended.IsPeripheral,
+            LiveSetting = extended.LiveSetting,
+            LiveSettingName = extended.LiveSettingName,
+            OptimizeForVisualContent = extended.OptimizeForVisualContent,
             NameSource = nameSource,
             LocalizedControlTypeSource = localizedControlTypeSource
         };
@@ -1431,6 +1583,102 @@ public static class UiAutomationBootstrap
         {
             return Array.Empty<int>();
         }
+    }
+
+    /// <summary>
+    /// Reads the properties introduced by <c>IUIAutomationElement2</c> through
+    /// <c>IUIAutomationElement9</c>.
+    /// </summary>
+    /// <remarks>
+    /// Each interface level is cast independently and failures degrade to null,
+    /// so a Windows build that exposes Element4 but not Element9 still yields
+    /// everything it has. This mirrors how <see cref="WaitForEvent"/> soft-casts
+    /// to <c>IUIAutomation3</c> rather than demanding a minimum OS version.
+    ///
+    /// The element is not a separate COM object at any level - these are QueryInterface
+    /// views onto the proxy the caller already owns - so nothing here is released.
+    /// </remarks>
+    private static UiAutomationExtendedElementInfo ReadExtendedElementInfo(IUIAutomationElement element)
+    {
+        var info = new UiAutomationExtendedElementInfo();
+
+        if (element is IUIAutomationElement2 e2)
+        {
+            info.LiveSetting = TryRead<int?>(() => (int)e2.CurrentLiveSetting, null);
+            info.LiveSettingName = TryRead<string?>(() => e2.CurrentLiveSetting.ToString(), null);
+            info.OptimizeForVisualContent = TryRead<bool?>(() => e2.CurrentOptimizeForVisualContent != 0, null);
+            info.FlowsFrom = ReadElementReferenceArray(() => TryRead(() => e2.CurrentFlowsFrom, null));
+        }
+
+        if (element is IUIAutomationElement3 e3)
+        {
+            info.IsPeripheral = TryRead<bool?>(() => e3.CurrentIsPeripheral != 0, null);
+        }
+
+        if (element is IUIAutomationElement4 e4)
+        {
+            info.PositionInSet = TryRead<int?>(() => e4.CurrentPositionInSet, null);
+            info.SizeOfSet = TryRead<int?>(() => e4.CurrentSizeOfSet, null);
+            info.Level = TryRead<int?>(() => e4.CurrentLevel, null);
+            // Element-level annotation types, distinct from the text-range annotation
+            // walk in ReadAnnotations: these describe the element, not a run of text.
+            info.AnnotationTypes = TryRead<IReadOnlyList<int>?>(
+                () => (e4.CurrentAnnotationTypes as int[])?.ToArray(),
+                null);
+        }
+
+        if (element is IUIAutomationElement5 e5)
+        {
+            info.LandmarkType = TryRead<int?>(() => e5.CurrentLandmarkType, null);
+            info.LocalizedLandmarkType = TryRead<string?>(() => e5.CurrentLocalizedLandmarkType, null);
+        }
+
+        if (element is IUIAutomationElement6 e6)
+        {
+            info.FullDescription = TryRead<string?>(() => e6.CurrentFullDescription, null);
+        }
+
+        if (element is IUIAutomationElement8 e8)
+        {
+            // UIA reports headings as 80051..80059 and non-headings as
+            // HeadingLevel_None (80050), so a raw passthrough would put a
+            // meaningless five-digit constant on every element in a tree. Project
+            // the ordinary 1..9 a caller expects, and null for "not a heading".
+            info.HeadingLevel = TryRead<int?>(
+                () =>
+                {
+                    var raw = (int)e8.CurrentHeadingLevel;
+                    return raw > UIA_HeadingLevelIds.HeadingLevel_None && raw <= UIA_HeadingLevelIds.HeadingLevel9
+                        ? raw - UIA_HeadingLevelIds.HeadingLevel_None
+                        : null;
+                },
+                null);
+        }
+
+        if (element is IUIAutomationElement9 e9)
+        {
+            info.IsDialog = TryRead<bool?>(() => e9.CurrentIsDialog != 0, null);
+        }
+
+        return info;
+    }
+
+    private sealed class UiAutomationExtendedElementInfo
+    {
+        public string? FullDescription { get; set; }
+        public int? PositionInSet { get; set; }
+        public int? SizeOfSet { get; set; }
+        public int? Level { get; set; }
+        public IReadOnlyList<int>? AnnotationTypes { get; set; }
+        public int? LandmarkType { get; set; }
+        public string? LocalizedLandmarkType { get; set; }
+        public int? HeadingLevel { get; set; }
+        public bool? IsDialog { get; set; }
+        public bool? IsPeripheral { get; set; }
+        public int? LiveSetting { get; set; }
+        public string? LiveSettingName { get; set; }
+        public bool? OptimizeForVisualContent { get; set; }
+        public IReadOnlyList<UiAutomationElementReference> FlowsFrom { get; set; } = Array.Empty<UiAutomationElementReference>();
     }
 
     private static UiAutomationPatternInfo[] ReadSupportedPatterns(IUIAutomation automation, IUIAutomationElement element)
@@ -1690,6 +1938,29 @@ public static class UiAutomationBootstrap
             {
                 DropTargetEffect = pattern.CurrentDropTargetEffect ?? string.Empty,
                 DropTargetEffects = pattern.CurrentDropTargetEffects ?? []
+            };
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static UiAutomationTransformPatternState? ReadTransformPattern(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationTransformPattern>(element, UIA_PatternIds.UIA_TransformPatternId);
+        if (pattern is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return new UiAutomationTransformPatternState
+            {
+                CanMove = pattern.CurrentCanMove != 0,
+                CanResize = pattern.CurrentCanResize != 0,
+                CanRotate = pattern.CurrentCanRotate != 0
             };
         }
         finally
@@ -2246,6 +2517,237 @@ public static class UiAutomationBootstrap
         }
     }
 
+    /// <summary>
+    /// Searches the document for <paramref name="needle"/> and reports the match by
+    /// offset, so a later independent call can act on it.
+    /// </summary>
+    /// <remarks>
+    /// Text ranges are live COM objects that cannot survive between CLI or MCP
+    /// invocations, which is why nothing here returns one. Offsets are the portable
+    /// address, and every verb that acts on text rebuilds its range from them.
+    /// </remarks>
+    private static UiAutomationTextFindResult FindTextRun(IUIAutomationTextRange? documentRange, string needle)
+    {
+        if (documentRange is null || string.IsNullOrEmpty(needle))
+        {
+            return new UiAutomationTextFindResult { Found = false, Needle = needle };
+        }
+
+        IUIAutomationTextRange? match = null;
+        try
+        {
+            // backward = 0, ignoreCase = 1: case-insensitive forward search is the
+            // useful default when a caller is locating text they read off a screen.
+            match = documentRange.FindText(needle, 0, 1);
+            if (match is null)
+            {
+                return new UiAutomationTextFindResult { Found = false, Needle = needle };
+            }
+
+            var text = TryRead<string?>(() => match.GetText(-1), null);
+            return new UiAutomationTextFindResult
+            {
+                Found = true,
+                Needle = needle,
+                StartOffset = ComputeOffset(documentRange, match),
+                Length = text?.Length,
+                Text = text,
+                BoundingRectangles = ReadBoundingRectangles(match)
+            };
+        }
+        catch (COMException)
+        {
+            return new UiAutomationTextFindResult { Found = false, Needle = needle };
+        }
+        finally
+        {
+            FinalRelease(match);
+        }
+    }
+
+    /// <summary>
+    /// Reads a range's screen rectangles. A range that wraps across lines reports
+    /// one rectangle per line; an off-screen range reports none.
+    /// </summary>
+    private static IReadOnlyList<UiAutomationRect> ReadBoundingRectangles(IUIAutomationTextRange range)
+    {
+        try
+        {
+            if (range.GetBoundingRectangles() is not double[] values || values.Length < 4)
+            {
+                return Array.Empty<UiAutomationRect>();
+            }
+
+            // The provider returns a flat [left, top, width, height, ...] array.
+            var results = new List<UiAutomationRect>(values.Length / 4);
+            for (var i = 0; i + 3 < values.Length; i += 4)
+            {
+                results.Add(new UiAutomationRect
+                {
+                    Left = (int)values[i],
+                    Top = (int)values[i + 1],
+                    Right = (int)(values[i] + values[i + 2]),
+                    Bottom = (int)(values[i + 1] + values[i + 3])
+                });
+            }
+
+            return results;
+        }
+        catch (COMException)
+        {
+            return Array.Empty<UiAutomationRect>();
+        }
+    }
+
+    /// <summary>
+    /// Rebuilds a text range from an offset and length against the document range.
+    /// The caller owns the returned range and must release it.
+    /// </summary>
+    private static IUIAutomationTextRange? BuildRangeFromOffset(IUIAutomationTextRange documentRange, int startOffset, int length)
+    {
+        IUIAutomationTextRange? range = null;
+        try
+        {
+            range = documentRange.Clone();
+            if (range is null)
+            {
+                return null;
+            }
+
+            // Collapse to the document start, then walk both endpoints forward.
+            range.MoveEndpointByRange(
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                documentRange,
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+
+            if (startOffset > 0)
+            {
+                range.MoveEndpointByUnit(TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start, TextUnit.TextUnit_Character, startOffset);
+                range.MoveEndpointByRange(
+                    TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                    range,
+                    TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+            }
+
+            if (length > 0)
+            {
+                range.MoveEndpointByUnit(TextPatternRangeEndpoint.TextPatternRangeEndpoint_End, TextUnit.TextUnit_Character, length);
+            }
+
+            var result = range;
+            range = null;
+            return result;
+        }
+        catch (COMException)
+        {
+            return null;
+        }
+        finally
+        {
+            FinalRelease(range);
+        }
+    }
+
+    /// <summary>
+    /// Resolves the range a text verb should act on, from either a search string or
+    /// an explicit offset and length. The caller owns the returned range.
+    /// </summary>
+    private static IUIAutomationTextRange ResolveTextRange(
+        IUIAutomationElement element,
+        string? needle,
+        int? startOffset,
+        double? length)
+    {
+        IUIAutomationTextPattern? pattern = null;
+        IUIAutomationTextRange? documentRange = null;
+        try
+        {
+            pattern = GetPattern<IUIAutomationTextPattern>(element, UIA_PatternIds.UIA_TextPatternId)
+                ?? throw new InvalidOperationException("Element does not support the Text pattern.");
+            documentRange = pattern.DocumentRange
+                ?? throw new InvalidOperationException("The Text provider returned no document range.");
+
+            if (!string.IsNullOrEmpty(needle))
+            {
+                var match = documentRange.FindText(needle, 0, 1)
+                    ?? throw new InvalidOperationException($"The text \"{needle}\" was not found in this element.");
+                return match;
+            }
+
+            if (startOffset is null)
+            {
+                throw new InvalidOperationException(
+                    "A text range is required. Pass the text to act on, or --int <startOffset> with an optional --number <length>.");
+            }
+
+            return BuildRangeFromOffset(documentRange, Math.Max(0, startOffset.Value), (int)Math.Max(0, length ?? 0))
+                ?? throw new InvalidOperationException("Could not build a text range at that offset.");
+        }
+        finally
+        {
+            FinalRelease(documentRange);
+            FinalRelease(pattern);
+        }
+    }
+
+    private static string PerformSelectText(IUIAutomationElement element, string? needle, int? startOffset, double? length)
+    {
+        IUIAutomationTextRange? range = null;
+        try
+        {
+            range = ResolveTextRange(element, needle, startOffset, length);
+            range.Select();
+            return needle is null
+                ? FormattableString.Invariant($"Selected text at offset {startOffset}.")
+                : $"Selected \"{needle}\".";
+        }
+        finally
+        {
+            FinalRelease(range);
+        }
+    }
+
+    private static string PerformMoveCaret(IUIAutomationElement element, string? needle, int? startOffset)
+    {
+        IUIAutomationTextRange? range = null;
+        try
+        {
+            // A degenerate range - start and end at the same point - is how UIA
+            // expresses a caret position; selecting it moves the caret without
+            // selecting anything.
+            range = ResolveTextRange(element, needle, startOffset, 0);
+            range.MoveEndpointByRange(
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_End,
+                range,
+                TextPatternRangeEndpoint.TextPatternRangeEndpoint_Start);
+            range.Select();
+            return needle is null
+                ? FormattableString.Invariant($"Moved caret to offset {startOffset}.")
+                : $"Moved caret to \"{needle}\".";
+        }
+        finally
+        {
+            FinalRelease(range);
+        }
+    }
+
+    private static string PerformScrollTextIntoView(IUIAutomationElement element, string? needle, int? startOffset, double? length)
+    {
+        IUIAutomationTextRange? range = null;
+        try
+        {
+            range = ResolveTextRange(element, needle, startOffset, length);
+            range.ScrollIntoView(1);
+            return needle is null
+                ? FormattableString.Invariant($"Scrolled offset {startOffset} into view.")
+                : $"Scrolled \"{needle}\" into view.";
+        }
+        finally
+        {
+            FinalRelease(range);
+        }
+    }
+
     private static UiAutomationTextEditInfo? ReadTextEdit(IUIAutomationTextEditPattern? pattern)
     {
         if (pattern is null)
@@ -2619,6 +3121,7 @@ public static class UiAutomationBootstrap
 
         try
         {
+            AssertTransformCapability(pattern, TransformCapability.Move);
             pattern.Move(
                 x ?? throw new InvalidOperationException("The move action requires X and Y coordinates."),
                 y ?? throw new InvalidOperationException("The move action requires X and Y coordinates."));
@@ -2637,10 +3140,75 @@ public static class UiAutomationBootstrap
 
         try
         {
+            AssertTransformCapability(pattern, TransformCapability.Resize);
             pattern.Resize(
                 width ?? throw new InvalidOperationException("The resize action requires width and height."),
                 height ?? throw new InvalidOperationException("The resize action requires width and height."));
             return "Resized element.";
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private static string PerformRotate(IUIAutomationElement element, double? degrees)
+    {
+        var pattern = GetPattern<IUIAutomationTransformPattern>(element, UIA_PatternIds.UIA_TransformPatternId)
+            ?? throw new InvalidOperationException("Element does not support the Transform pattern.");
+
+        try
+        {
+            AssertTransformCapability(pattern, TransformCapability.Rotate);
+            pattern.Rotate(degrees ?? throw new InvalidOperationException("The rotate action requires a number of degrees."));
+            return FormattableString.Invariant($"Rotated element by {degrees} degrees.");
+        }
+        finally
+        {
+            FinalRelease(pattern);
+        }
+    }
+
+    private enum TransformCapability
+    {
+        Move,
+        Resize,
+        Rotate
+    }
+
+    /// <summary>
+    /// Fails with the specific capability that is false rather than letting the
+    /// call reach COM and come back as an opaque provider error. A window that
+    /// cannot be resized advertises Transform all the same.
+    /// </summary>
+    private static void AssertTransformCapability(IUIAutomationTransformPattern pattern, TransformCapability capability)
+    {
+        var (supported, verb) = capability switch
+        {
+            TransformCapability.Move => (TryRead(() => pattern.CurrentCanMove != 0, true), "moved"),
+            TransformCapability.Resize => (TryRead(() => pattern.CurrentCanResize != 0, true), "resized"),
+            TransformCapability.Rotate => (TryRead(() => pattern.CurrentCanRotate != 0, true), "rotated"),
+            _ => (true, string.Empty)
+        };
+
+        if (!supported)
+        {
+            throw new InvalidOperationException(
+                $"The element supports the Transform pattern but reports that it cannot be {verb}. " +
+                "Check transformPattern on the element before retrying.");
+        }
+    }
+
+    private static string PerformScrollIntoView(IUIAutomationElement element)
+    {
+        var pattern = GetPattern<IUIAutomationScrollItemPattern>(element, UIA_PatternIds.UIA_ScrollItemPatternId)
+            ?? throw new InvalidOperationException(
+                "Element does not support the ScrollItem pattern. If the item is virtualized, try 'realize' first.");
+
+        try
+        {
+            pattern.ScrollIntoView();
+            return "Scrolled element into view.";
         }
         finally
         {
@@ -2967,6 +3535,238 @@ public static class UiAutomationBootstrap
                     TextEditChangeTypeName = ChangeType.ToString(),
                     EventStrings = EventStrings,
                     SourceElement = sender is null ? null : ReadElementInfo(automation, sender)
+                };
+            }
+            finally
+            {
+                FinalRelease(sender);
+                sender = null;
+            }
+        }
+
+        public void Dispose() => WaitHandle.Dispose();
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class NotificationEventHandler : IUIAutomationNotificationEventHandler, IDisposable
+    {
+        private IUIAutomationElement? sender;
+
+        public AutoResetEvent WaitHandle { get; } = new(false);
+
+        public NotificationKind Kind { get; private set; }
+
+        public NotificationProcessing Processing { get; private set; }
+
+        public string DisplayString { get; private set; } = string.Empty;
+
+        public string ActivityId { get; private set; } = string.Empty;
+
+        public void HandleNotificationEvent(
+            IUIAutomationElement sender,
+            NotificationKind notificationKind,
+            NotificationProcessing notificationProcessing,
+            string displayString,
+            string activityId)
+        {
+            if (this.sender is null)
+            {
+                this.sender = sender;
+                Kind = notificationKind;
+                Processing = notificationProcessing;
+                DisplayString = displayString ?? string.Empty;
+                ActivityId = activityId ?? string.Empty;
+                WaitHandle.Set();
+                return;
+            }
+
+            FinalRelease(sender);
+        }
+
+        public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
+        {
+            try
+            {
+                // Nothing arrived, so report no payload rather than the zero values
+                // of the enums - NotificationKind 0 is ItemAdded, which would read as
+                // a real notification that never happened.
+                if (sender is null)
+                {
+                    return new UiAutomationEventResult
+                    {
+                        EventKind = "notification",
+                        TimedOut = timedOut
+                    };
+                }
+
+                return new UiAutomationEventResult
+                {
+                    EventKind = "notification",
+                    TimedOut = timedOut,
+                    NotificationKind = (int)Kind,
+                    NotificationKindName = Kind.ToString(),
+                    NotificationProcessing = (int)Processing,
+                    NotificationProcessingName = Processing.ToString(),
+                    DisplayString = DisplayString,
+                    ActivityId = ActivityId,
+                    SourceElement = ReadElementInfo(automation, sender)
+                };
+            }
+            finally
+            {
+                FinalRelease(sender);
+                sender = null;
+            }
+        }
+
+        public void Dispose() => WaitHandle.Dispose();
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class ChangesEventHandler : IUIAutomationChangesEventHandler, IDisposable
+    {
+        private IUIAutomationElement? sender;
+
+        public AutoResetEvent WaitHandle { get; } = new(false);
+
+        public int ChangeId { get; private set; }
+
+        public string? Payload { get; private set; }
+
+        public int ChangeCount { get; private set; }
+
+        public void HandleChangesEvent(IUIAutomationElement sender, ref UiaChangeInfo uiaChanges, int changesCount)
+        {
+            if (this.sender is null)
+            {
+                this.sender = sender;
+                // The interop signature is `ref UiaChangeInfo` plus a count rather than
+                // an array, so only the first entry is reachable without unsafe pointer
+                // arithmetic. changesCount is reported so a caller can tell that more
+                // changes were coalesced into the same notification.
+                ChangeId = uiaChanges.uiaId;
+                Payload = uiaChanges.payload?.ToString();
+                ChangeCount = changesCount;
+                WaitHandle.Set();
+                return;
+            }
+
+            FinalRelease(sender);
+        }
+
+        public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
+        {
+            try
+            {
+                if (sender is null)
+                {
+                    return new UiAutomationEventResult { EventKind = "changes", TimedOut = timedOut };
+                }
+
+                return new UiAutomationEventResult
+                {
+                    EventKind = "changes",
+                    TimedOut = timedOut,
+                    ChangeId = ChangeId,
+                    ChangePayload = Payload,
+                    ChangeCount = ChangeCount,
+                    SourceElement = ReadElementInfo(automation, sender)
+                };
+            }
+            finally
+            {
+                FinalRelease(sender);
+                sender = null;
+            }
+        }
+
+        public void Dispose() => WaitHandle.Dispose();
+    }
+
+    [ComVisible(true)]
+    [ClassInterface(ClassInterfaceType.None)]
+    private sealed class ActiveTextPositionEventHandler : IUIAutomationActiveTextPositionChangedEventHandler, IDisposable
+    {
+        private IUIAutomationElement? sender;
+
+        public AutoResetEvent WaitHandle { get; } = new(false);
+
+        public string? RangeText { get; private set; }
+
+        public int? RangeOffset { get; private set; }
+
+        public void HandleActiveTextPositionChangedEvent(IUIAutomationElement sender, IUIAutomationTextRange range)
+        {
+            if (this.sender is null)
+            {
+                this.sender = sender;
+                try
+                {
+                    RangeText = TryRead<string?>(() => range?.GetText(-1), null);
+                    RangeOffset = ComputeRangeOffset(sender, range);
+                }
+                finally
+                {
+                    FinalRelease(range);
+                }
+
+                WaitHandle.Set();
+                return;
+            }
+
+            FinalRelease(sender);
+            FinalRelease(range);
+        }
+
+        /// <summary>
+        /// Derives a document offset for the reported range, reusing the same
+        /// clone-and-move technique the text reader uses. IUIAutomationTextRange
+        /// exposes no offset property, so this is the only way to get one.
+        /// </summary>
+        private static int? ComputeRangeOffset(IUIAutomationElement element, IUIAutomationTextRange? range)
+        {
+            if (range is null)
+            {
+                return null;
+            }
+
+            IUIAutomationTextPattern? textPattern = null;
+            IUIAutomationTextRange? documentRange = null;
+            try
+            {
+                textPattern = GetPattern<IUIAutomationTextPattern>(element, UIA_PatternIds.UIA_TextPatternId);
+                documentRange = textPattern?.DocumentRange;
+                return documentRange is null ? null : ComputeOffset(documentRange, range);
+            }
+            catch (COMException)
+            {
+                return null;
+            }
+            finally
+            {
+                FinalRelease(documentRange);
+                FinalRelease(textPattern);
+            }
+        }
+
+        public UiAutomationEventResult ToResult(IUIAutomation automation, bool timedOut)
+        {
+            try
+            {
+                if (sender is null)
+                {
+                    return new UiAutomationEventResult { EventKind = "active-text-position", TimedOut = timedOut };
+                }
+
+                return new UiAutomationEventResult
+                {
+                    EventKind = "active-text-position",
+                    TimedOut = timedOut,
+                    TextRangeText = RangeText,
+                    TextRangeOffset = RangeOffset,
+                    SourceElement = ReadElementInfo(automation, sender)
                 };
             }
             finally
