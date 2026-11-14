@@ -8,7 +8,7 @@
   <!-- Referenced directly by a project. -->
   <ItemGroup>
     <PackageVersion Include="Interop.UIAutomationClient" Version="10.19041.0" />
-    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="9.0.4" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting" Version="11.0.0" />
     <PackageVersion Include="ModelContextProtocol" Version="0.9.0-preview.2" />
   </ItemGroup>
 
